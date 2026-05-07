@@ -2,8 +2,12 @@ use chrono::{DateTime, NaiveDate};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ynab::client::Client;
-use crate::ynab::errors::Error;
+use crate::Client;
+use crate::Error;
+use crate::Month;
+use crate::{Category, CategoryGroup};
+use crate::{Payee, PayeeLocation};
+use crate::{ScheduledSubTransation, ScheduledTransaction, Subtransaction, Transaction};
 
 // TODO: Move accounts to separate module
 #[derive(Debug, Deserialize, Serialize)]
@@ -35,6 +39,8 @@ pub enum AccountType {
     OtherAsset,
     OtherLiability,
     StudentLoan,
+    #[serde(other)]
+    Other,
 }
 // End account structs
 
@@ -96,7 +102,6 @@ pub struct PlanSettings {
     pub date_format: DateFormat,
     pub currency_format: CurrencyFormat,
 }
-/* not ready yet
 
 #[derive(Debug, Serialize, Deserialize)]
 struct PlanDetailsDataEnvelope {
@@ -109,23 +114,22 @@ struct PlanDetailsData {
     server_knowledge: i64,
 }
 
-/// PlanDetails is the full plan export returned by GetPlan, including all
-/// accounts, categories, transactions, and other sub-resources.
-// #[derive(Debug, Serialize, Deserialize)]
+// PlanDetails is the full plan export returned by GetPlan, including all
+// accounts, categories, transactions, and other sub-resources.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PlanDetails {
     #[serde(flatten)]
-    plan: Plan,
-    payees: Vec<Payee>,
-    payee_locations: Vec<PayeeLocation>,
-    category_groups: Vec<CategoryGroup>,
-    categories: Vec<Category>,
-    months: Vec<Month>,
-    transactions: Vec<Transaction>,
-    subtransactions: Vec<Subtransaction>,
-    scheduled_transactions: Vec<ScheduledTransaction>,
-    scheduled_subtransactions: Vec<ScheduledSubTransation>,
+    pub plan: Plan,
+    pub payees: Vec<Payee>,
+    pub payee_locations: Vec<PayeeLocation>,
+    pub category_groups: Vec<CategoryGroup>,
+    pub categories: Vec<Category>,
+    pub months: Vec<Month>,
+    pub transactions: Vec<Transaction>,
+    pub subtransactions: Vec<Subtransaction>,
+    pub scheduled_transactions: Vec<ScheduledTransaction>,
+    pub scheduled_subtransactions: Vec<ScheduledSubTransation>,
 }
-*/
 
 impl Client {
     /// get_plans returns all plans for the authenticated user. include_accounts flag indicates
@@ -143,24 +147,30 @@ impl Client {
     /// get_plan_settings returns the date and currency format settings for a plan.
     pub async fn get_plan_settings(&self, plan_id: Uuid) -> Result<PlanSettings, Error> {
         let result: PlanSettingsDataEnvelope = self
-            .get(&format!("plans/{}/settings", plan_id), &vec![])
+            .get(&format!("plans/{}/settings", plan_id), &[])
             .await?;
         Ok(result.data.settings)
     }
 
-    /*
-
-    /// GetLastUsedPlan returns the full export for the most recently used plan
-/// for the authenticated user. Use the returned plan's ID for subsequent
-/// sub-resource calls (GetAccounts, GetTransactions, etc.) — there is no
-/// "last-used" shortcut for sub-resource endpoints.
-    pub async fn get_last_used_plan(&self) -> Result<Plan, Error> {
-        let mut params = vec![];
-        if include_accounts {
-            params.push(("include_accounts", "true"));
-        }
-        let result: PlanDetailsDataEnvelope = self.get("plans/last-used", &params).await?;
-        Ok(result.data.plan)
+    /// get_plan returns the full export for the given plan, including all
+    /// sub-resources. The second return value is server knowledge for delta requests.
+    /// For large plans this response can be substantial —
+    /// consider using specific resource endpoints for targeted queries.
+    pub async fn get_plan(
+        &self,
+        plan_id: Uuid,
+        params: &[bool],
+    ) -> Result<(PlanDetails, i64), Error> {
+        let result: PlanDetailsDataEnvelope = self.get(&format!("plans/{}", plan_id), &[]).await?;
+        Ok((result.data.plan, result.data.server_knowledge))
     }
-         */
+
+    /// get_last_plan_used returns the full export for the most recently used plan
+    /// for the authenticated user. Use the returned plan's ID for subsequent
+    /// sub-resource calls (GetAccounts, GetTransactions, etc.) — there is no
+    /// "last-used" shortcut for sub-resource endpoints.
+    pub async fn get_last_plan_used(&self, params: &[bool]) -> Result<(PlanDetails, i64), Error> {
+        let result: PlanDetailsDataEnvelope = self.get("plans/last-used", &[]).await?;
+        Ok((result.data.plan, result.data.server_knowledge))
+    }
 }

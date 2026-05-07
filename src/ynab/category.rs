@@ -2,6 +2,9 @@ use chrono::{DateTime, NaiveDate};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::Client;
+use crate::Error;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct CategoriesDataEnvelope {
     data: CategoriesData,
@@ -10,7 +13,7 @@ struct CategoriesDataEnvelope {
 #[derive(Debug, Serialize, Deserialize)]
 struct CategoriesData {
     category_groups: Vec<CategoryGroup>,
-    server_knowldge: i64,
+    server_knowledge: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,4 +91,53 @@ pub enum GoalType {
     MonthlyFunding, // "MF"
     #[serde(rename = "DEBT")]
     Debt, // "DEBT"
+    #[serde(other)]
+    Other,
+}
+
+impl Client {
+    /// get_categories returns all category groups and their categories for a plan.
+    /// The second return value is server knowledge for delta requests.
+    pub async fn get_categories(
+        &self,
+        plan_id: Uuid,
+        last_server_knowledge: Option<i64>,
+    ) -> Result<(Vec<CategoryGroup>, i64), Error> {
+        let sk_owned = last_server_knowledge.map(|sk| sk.to_string());
+        let params: Vec<(&str, &str)> = sk_owned
+            .as_deref()
+            .map(|sk| vec![("last_knowledge_of_server", sk)])
+            .unwrap_or_default();
+
+        let result: CategoriesDataEnvelope = self
+            .get(&format!("plans/{}/categories", plan_id), &params)
+            .await?;
+        Ok((result.data.category_groups, result.data.server_knowledge))
+    }
+
+    /// get_category returns a single category by ID.
+    pub async fn get_category(&self, plan_id: Uuid, cat_id: Uuid) -> Result<Category, Error> {
+        let result: CategoryDataEnvelope = self
+            .get(&format!("plans/{}/categories/{}", plan_id, cat_id), &[])
+            .await?;
+
+        Ok(result.data.category)
+    }
+
+    /// get_category_for_month returns a category's data for a specific budget month.
+    pub async fn get_category_for_month(
+        &self,
+        plan_id: Uuid,
+        cat_id: Uuid,
+        month: NaiveDate,
+    ) -> Result<Category, Error> {
+        let result: CategoryDataEnvelope = self
+            .get(
+                &format!("plans/{}/months/{}/categories/{}", plan_id, month, cat_id),
+                &[],
+            )
+            .await?;
+
+        Ok(result.data.category)
+    }
 }

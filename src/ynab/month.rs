@@ -38,7 +38,7 @@ pub struct Month {
     pub to_be_budgeted: i64,
     pub age_of_money: Option<usize>,
     pub deleted: bool,
-    pub categories: Vec<Category>,
+    pub categories: Option<Vec<Category>>,
 }
 
 impl Client {
@@ -49,15 +49,12 @@ impl Client {
         plan_id: Uuid,
         last_server_knowledge: Option<i64>,
     ) -> Result<Vec<Month>, Error> {
-        let sk_str: &str = if let Some(sk) = last_server_knowledge {
-            &sk.to_string()
-        } else {
-            ""
-        };
-        let mut params: Vec<(&str, &str)> = vec![];
-        if !sk_str.is_empty() {
-            params.push(("last_knowledge_of_server", sk_str));
-        }
+        let sk_owned = last_server_knowledge.map(|sk| sk.to_string());
+        let params: Vec<(&str, &str)> = sk_owned
+            .as_deref()
+            .map(|sk| vec![("last_knowledge_of_server", sk)])
+            .unwrap_or_default();
+
         let result: MonthsDataEnvelope = self
             .get(&format!("plans/{}/months", plan_id), &params)
             .await?;
@@ -66,9 +63,8 @@ impl Client {
 
     /// get_month returns a single budget month including its category details.
     pub async fn get_month(&self, plan_id: Uuid, month: NaiveDate) -> Result<Month, Error> {
-        let mut params = vec![];
         let result: MonthDataEnvelope = self
-            .get(&format!("plans/{}/months/{}", plan_id, month), &params)
+            .get(&format!("plans/{}/months/{}", plan_id, month), &[])
             .await?;
 
         Ok(result.data.month)

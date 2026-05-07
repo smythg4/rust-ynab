@@ -116,7 +116,7 @@ impl Client {
         let params = vec![];
         let result: PayeeLocationDataEnvelope = self
             .get(
-                &format!("plans/{}/payee_locationss/{}", plan_id, location_id),
+                &format!("plans/{}/payee_locations/{}", plan_id, location_id),
                 &params,
             )
             .await?;

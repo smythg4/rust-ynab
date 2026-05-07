@@ -4,3 +4,4 @@ pub mod errors;
 pub mod month;
 pub mod payee;
 pub mod plan;
+pub mod transaction;

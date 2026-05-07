@@ -1,19 +1,14 @@
 use rust_ynab::ynab::client::Client;
-use rust_ynab::ynab::errors::Error;
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    let api_key = std::env::var("YNAB_TOKEN").expect("no api key found");
-    let client = Client::new(api_key)?;
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new(std::env::var("YNAB_TOKEN")?)?;
 
-    let mut plans = client.get_plans(false).await?;
+    let (plan, sk) = client.get_last_plan_used(&[]).await?;
 
+    let months = client.get_months(plan.plan.id, Some(sk)).await?;
 
-    let plan = plans.pop().unwrap();
-
-    let months = client.get_months(plan.id, None).await?;
     for month in months {
-        println!("{}: {}", month.month, month.income);
+        println!("{}: {:?}", month.month, month.note)
     }
-
     Ok(())
 }
