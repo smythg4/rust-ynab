@@ -147,4 +147,20 @@ impl Client {
             .await?;
         Ok(result.data.settings)
     }
+
+    /*
+
+    /// GetLastUsedPlan returns the full export for the most recently used plan
+/// for the authenticated user. Use the returned plan's ID for subsequent
+/// sub-resource calls (GetAccounts, GetTransactions, etc.) — there is no
+/// "last-used" shortcut for sub-resource endpoints.
+    pub async fn get_last_used_plan(&self) -> Result<Plan, Error> {
+        let mut params = vec![];
+        if include_accounts {
+            params.push(("include_accounts", "true"));
+        }
+        let result: PlanDetailsDataEnvelope = self.get("plans/last-used", &params).await?;
+        Ok(result.data.plan)
+    }
+         */
 }
