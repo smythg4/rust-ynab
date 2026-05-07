@@ -10,9 +10,7 @@ pub use ynab::movements::{MoneyMovement, MoneyMovementGroup};
 pub use ynab::payee::{Payee, PayeeLocation};
 pub use ynab::plan::{Plan, PlanId, PlanSettings};
 pub use ynab::transaction::{
-    ClearedStatus, CreateTransactionResponse, CreateTransactionsResponse, FlagColor, Frequency,
-    ImportTransactionsResponse, SaveScheduledTransaction, SaveSubtransaction, SaveTransaction,
-    ScheduledSubtransaction, ScheduledTransaction, Subtransaction, Transaction,
-    TransactionListParams, UpdateTransaction,
+    ClearedStatus, FlagColor, Frequency, ScheduledSubtransaction, ScheduledTransaction,
+    Subtransaction, Transaction, TransactionType,
 };
 pub use ynab::user::User;

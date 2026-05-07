@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ynab::client::Client;
-use crate::ynab::errors::Error;
 use crate::PlanId;
+use crate::ynab::client::Client;
 use crate::ynab::common::NO_PARAMS;
+use crate::ynab::errors::Error;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct PayeesDataEnvelope {
@@ -66,15 +66,38 @@ pub struct PayeeLocation {
     pub deleted: bool,
 }
 
-impl Client {
-    /// get_payees returns all payees for a plan. The second return value is server knowledge for delta requests.
-    pub async fn get_payees(&self, plan_id: PlanId) -> Result<Vec<Payee>, Error> {
-        let result: PayeesDataEnvelope = self
-            .get(&format!("plans/{}/payees", plan_id), NO_PARAMS)
-            .await?;
-        Ok(result.data.payees)
+#[derive(Debug)]
+pub struct GetPayeesBuilder<'a> {
+    client: &'a Client,
+    plan_id: PlanId,
+    last_knowledge_of_server: Option<i64>,
+}
+
+impl<'a> GetPayeesBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+        self.last_knowledge_of_server = Some(sk);
+        self
     }
-    /// get_payee returns a single payee by ID.
+
+    pub async fn send(self) -> Result<(Vec<Payee>, i64), Error> {
+        let result: PayeesDataEnvelope = self
+            .client
+            .get(&format!("plans/{}/payees", self.plan_id), NO_PARAMS)
+            .await?;
+        Ok((result.data.payees, result.data.server_knowledge))
+    }
+}
+
+impl Client {
+    /// Returns all payees. The second return value is server knowledge for delta requests.
+    pub fn get_payees(&self, plan_id: PlanId) -> GetPayeesBuilder<'_> {
+        GetPayeesBuilder {
+            client: self,
+            plan_id,
+            last_knowledge_of_server: None,
+        }
+    }
+    /// Returns a single payee.
     pub async fn get_payee(&self, plan_id: PlanId, payee_id: Uuid) -> Result<Payee, Error> {
         let result: PayeeDataEnvelope = self
             .get(&format!("plans/{}/payees/{}", plan_id, payee_id), NO_PARAMS)
@@ -82,7 +105,7 @@ impl Client {
         Ok(result.data.payee)
     }
 
-    /// get_payee_locations returns all locations associated with a plan.
+    /// Returns all payee locations.
     pub async fn get_payee_locations(&self, plan_id: PlanId) -> Result<Vec<PayeeLocation>, Error> {
         let result: PayeeLocationsDataEnvelope = self
             .get(&format!("plans/{}/payee_locations", plan_id), NO_PARAMS)
@@ -90,7 +113,7 @@ impl Client {
         Ok(result.data.payee_locations)
     }
 
-    /// get_payee_locations_by_payee returns all locations associated with a specific payee.
+    /// Returns all payee locations for a specified payee.
     pub async fn get_payee_locations_by_payee(
         &self,
         plan_id: PlanId,
@@ -105,7 +128,7 @@ impl Client {
         Ok(result.data.payee_locations)
     }
 
-    /// get_payee_location returns the location by ID
+    /// Returns a single payee location.
     pub async fn get_payee_location(
         &self,
         plan_id: PlanId,

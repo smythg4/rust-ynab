@@ -2,10 +2,10 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ynab::client::Client;
-use crate::ynab::errors::Error;
 use crate::PlanId;
+use crate::ynab::client::Client;
 use crate::ynab::common::NO_PARAMS;
+use crate::ynab::errors::Error;
 
 // --- Envelopes ---
 
@@ -49,21 +49,6 @@ struct ScheduledTransactionsDataEnvelope {
 struct ScheduledTransactionsData {
     scheduled_transactions: Vec<ScheduledTransaction>,
     server_knowledge: i64,
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateTransactionResponseEnvelope {
-    data: CreateTransactionResponse,
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateTransactionsResponseEnvelope {
-    data: CreateTransactionsResponse,
-}
-
-#[derive(Debug, Deserialize)]
-struct ImportTransactionsResponseEnvelope {
-    data: ImportTransactionsResponse,
 }
 
 // --- Enums ---
@@ -120,8 +105,6 @@ pub enum Frequency {
     EveryOtherYear,
 }
 
-// --- Read types ---
-
 /// Transaction represents a single YNAB transaction. Amounts are in milliunits (divide by 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
@@ -135,11 +118,12 @@ pub struct Transaction {
     pub flag_name: Option<String>,
     pub account_id: Uuid,
     pub payee_id: Option<Uuid>,
-    pub account_name: String,
+    pub account_name: Option<String>,
     pub payee_name: Option<String>,
     pub category_id: Option<Uuid>,
     pub category_name: Option<String>,
     pub matched_transaction_id: Option<String>,
+    #[serde(default)]
     pub subtransactions: Vec<Subtransaction>,
 }
 
@@ -194,199 +178,105 @@ pub struct ScheduledSubtransaction {
     pub deleted: bool,
 }
 
-// --- Write types ---
-
-/// SaveTransaction is the request body for creating a transaction. Amount is in milliunits.
-#[derive(Debug, Serialize)]
-pub struct SaveTransaction {
-    pub account_id: Uuid,
-    pub date: NaiveDate,
-    pub amount: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memo: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cleared: Option<ClearedStatus>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub approved: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flag_color: Option<FlagColor>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub import_id: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub subtransactions: Vec<SaveSubtransaction>,
+#[derive(Debug)]
+pub enum TransactionType {
+    Uncategorized,
+    Unapproved,
 }
 
-/// SaveSubtransaction is the request body for a sub-transaction. Amount is in milliunits.
-#[derive(Debug, Serialize)]
-pub struct SaveSubtransaction {
-    pub amount: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memo: Option<String>,
-}
-
-/// UpdateTransaction is the request body for updating a transaction.
-#[derive(Debug, Serialize)]
-pub struct UpdateTransaction {
-    pub id: String,
-    pub account_id: Uuid,
-    pub date: NaiveDate,
-    pub amount: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memo: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cleared: Option<ClearedStatus>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub approved: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flag_color: Option<FlagColor>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub import_id: Option<String>,
-}
-
-/// SaveScheduledTransaction is the request body for creating or updating a scheduled transaction.
-#[derive(Debug, Serialize)]
-pub struct SaveScheduledTransaction {
-    pub account_id: Uuid,
-    pub date: NaiveDate,
-    pub amount: i64,
-    pub frequency: Frequency,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flag_color: Option<FlagColor>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memo: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payee_name: Option<String>,
-}
-
-// --- Response types ---
-
-/// CreateTransactionResponse is returned by create_transaction.
-#[derive(Debug, Deserialize)]
-pub struct CreateTransactionResponse {
-    pub transaction_ids: Vec<String>,
-    pub transaction: Transaction,
-    pub duplicate_import_ids: Vec<String>,
-    pub server_knowledge: i64,
-}
-
-/// CreateTransactionsResponse is returned by create_transactions and update_transactions.
-#[derive(Debug, Deserialize)]
-pub struct CreateTransactionsResponse {
-    pub transaction_ids: Vec<String>,
-    pub transactions: Vec<Transaction>,
-    pub duplicate_import_ids: Vec<String>,
-    pub server_knowledge: i64,
-}
-
-/// ImportTransactionsResponse is returned by import_transactions.
-#[derive(Debug, Deserialize)]
-pub struct ImportTransactionsResponse {
-    pub transaction_ids: Vec<String>,
-    pub server_knowledge: i64,
-}
-
-// --- Params ---
-
-/// TransactionListParams holds optional filter parameters for transaction list endpoints.
-pub struct TransactionListParams {
-    /// Only return transactions on or after this date.
-    pub since_date: Option<NaiveDate>,
-    /// Filter by "uncategorized" or "unapproved".
-    pub transaction_type: Option<String>,
-    /// For delta requests; pass the value returned by a prior call.
-    pub last_knowledge_of_server: Option<i64>,
-}
-
-fn build_transaction_params(params: Option<&TransactionListParams>) -> Vec<(String, String)> {
-    let mut q = vec![];
-    if let Some(p) = params {
-        if let Some(since_date) = &p.since_date {
-            q.push(("since_date".to_string(), since_date.to_string()));
-        }
-        if let Some(tx_type) = &p.transaction_type {
-            q.push(("type".to_string(), tx_type.clone()));
-        }
-        if let Some(sk) = p.last_knowledge_of_server {
-            q.push(("last_knowledge_of_server".to_string(), sk.to_string()));
+impl std::fmt::Display for TransactionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unapproved => write!(f, "unapproved"),
+            Self::Uncategorized => write!(f, "uncategorized"),
         }
     }
-    q
 }
 
-// --- Request wrappers ---
-
-#[derive(Serialize)]
-struct SaveTransactionWrapper {
-    transaction: SaveTransaction,
+#[derive(Debug)]
+enum TransactionScope {
+    All,
+    ByAccount(Uuid),
+    ByCategory(Uuid),
+    ByPayee(Uuid),
+    ByMonth(NaiveDate),
+}
+#[derive(Debug)]
+pub struct GetTransactionsBuilder<'a> {
+    client: &'a Client,
+    scope: TransactionScope,
+    plan_id: PlanId,
+    since_date: Option<NaiveDate>,
+    transaction_type: Option<TransactionType>,
+    last_knowledge_of_server: Option<i64>,
 }
 
-#[derive(Serialize)]
-struct SaveTransactionsWrapper {
-    transactions: Vec<SaveTransaction>,
-}
+impl<'a> GetTransactionsBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+        self.last_knowledge_of_server = Some(sk);
+        self
+    }
 
-#[derive(Serialize)]
-struct UpdateTransactionWrapper {
-    transaction: UpdateTransaction,
-}
+    pub fn since_date(mut self, since_date: NaiveDate) -> Self {
+        self.since_date = Some(since_date);
+        self
+    }
 
-#[derive(Serialize)]
-struct UpdateTransactionsWrapper {
-    transactions: Vec<UpdateTransaction>,
-}
+    pub fn transaction_type(mut self, tx_type: TransactionType) -> Self {
+        self.transaction_type = Some(tx_type);
+        self
+    }
 
-#[derive(Serialize)]
-struct SaveScheduledTransactionWrapper {
-    scheduled_transaction: SaveScheduledTransaction,
-}
+    pub async fn send(self) -> Result<(Vec<Transaction>, i64), Error> {
+        let date_str = self.since_date.map(|d| d.to_string());
+        let type_str = self.transaction_type.map(|t| t.to_string());
+        let sk_str = self.last_knowledge_of_server.map(|sk| sk.to_string());
 
-#[derive(Serialize)]
-struct EmptyBody {}
-
-// --- impl Client ---
-
-impl Client {
-    /// get_transactions returns all transactions for a plan.
-    /// The second return value is server knowledge for delta requests.
-    pub async fn get_transactions(
-        &self,
-        plan_id: PlanId,
-        params: Option<&TransactionListParams>,
-    ) -> Result<(Vec<Transaction>, i64), Error> {
-        let owned = build_transaction_params(params);
-        let refs: Vec<(&str, &str)> = owned
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let result: TransactionsDataEnvelope = self
-            .get(&format!("plans/{}/transactions", plan_id), &refs)
-            .await?;
+        let mut params: Vec<(&str, &str)> = Vec::new();
+        if let Some(ref s) = date_str {
+            params.push(("since_date", s));
+        }
+        if let Some(ref t) = type_str {
+            params.push(("type", t));
+        }
+        if let Some(ref s) = sk_str {
+            params.push(("last_knowledge_of_server", s));
+        }
+        let url = match self.scope {
+            TransactionScope::All => format!("plans/{}/transactions", self.plan_id),
+            TransactionScope::ByAccount(id) => {
+                format!("plans/{}/accounts/{}/transactions", self.plan_id, id)
+            }
+            TransactionScope::ByCategory(id) => {
+                format!("plans/{}/categories/{}/transactions", self.plan_id, id)
+            }
+            TransactionScope::ByPayee(id) => {
+                format!("plans/{}/payees/{}/transactions", self.plan_id, id)
+            }
+            TransactionScope::ByMonth(month) => {
+                format!("plans/{}/months/{}/transactions", self.plan_id, month)
+            }
+        };
+        let result: TransactionsDataEnvelope = self.client.get(&url, Some(&params)).await?;
         Ok((result.data.transactions, result.data.server_knowledge))
     }
+}
 
-    /// get_transaction returns a single transaction by ID.
+impl Client {
+    /// Returns plan transactions, excluding any pending transactions. The second return value is
+    /// server knowledge for delta requests.
+    pub fn get_transactions(&self, plan_id: PlanId) -> GetTransactionsBuilder<'_> {
+        GetTransactionsBuilder {
+            client: self,
+            scope: TransactionScope::All,
+            plan_id,
+            since_date: None,
+            transaction_type: None,
+            last_knowledge_of_server: None,
+        }
+    }
+
+    /// Returns a single transaction.
     pub async fn get_transaction(
         &self,
         plan_id: PlanId,
@@ -401,106 +291,95 @@ impl Client {
         Ok(result.data.transaction)
     }
 
-    /// get_transactions_by_account returns all transactions for a specific account.
-    pub async fn get_transactions_by_account(
+    /// Returns all transactions for a specified account, excluding any pending transactions.
+    pub fn get_transactions_by_account(
         &self,
         plan_id: PlanId,
         account_id: Uuid,
-        params: Option<&TransactionListParams>,
-    ) -> Result<(Vec<Transaction>, i64), Error> {
-        let owned = build_transaction_params(params);
-        let refs: Vec<(&str, &str)> = owned
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let result: TransactionsDataEnvelope = self
-            .get(
-                &format!("plans/{}/accounts/{}/transactions", plan_id, account_id),
-                &refs,
-            )
-            .await?;
-        Ok((result.data.transactions, result.data.server_knowledge))
+    ) -> GetTransactionsBuilder<'_> {
+        GetTransactionsBuilder {
+            client: self,
+            scope: TransactionScope::ByAccount(account_id),
+            plan_id,
+            since_date: None,
+            transaction_type: None,
+            last_knowledge_of_server: None,
+        }
     }
 
-    /// get_transactions_by_category returns all transactions for a specific category.
-    pub async fn get_transactions_by_category(
+    /// Returns all transactions for a specified category, excluding any pending transactions.
+    pub fn get_transactions_by_category(
         &self,
         plan_id: PlanId,
         category_id: Uuid,
-        params: Option<&TransactionListParams>,
-    ) -> Result<(Vec<Transaction>, i64), Error> {
-        let owned = build_transaction_params(params);
-        let refs: Vec<(&str, &str)> = owned
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let result: TransactionsDataEnvelope = self
-            .get(
-                &format!("plans/{}/categories/{}/transactions", plan_id, category_id),
-                &refs,
-            )
-            .await?;
-        Ok((result.data.transactions, result.data.server_knowledge))
+    ) -> GetTransactionsBuilder<'_> {
+        GetTransactionsBuilder {
+            client: self,
+            scope: TransactionScope::ByCategory(category_id),
+            plan_id,
+            since_date: None,
+            transaction_type: None,
+            last_knowledge_of_server: None,
+        }
     }
 
-    /// get_transactions_by_payee returns all transactions for a specific payee.
-    pub async fn get_transactions_by_payee(
+    /// Returns all transactions for a specified payee, excluding any pending transactions.
+    pub fn get_transactions_by_payee(
         &self,
         plan_id: PlanId,
         payee_id: Uuid,
-        params: Option<&TransactionListParams>,
-    ) -> Result<(Vec<Transaction>, i64), Error> {
-        let owned = build_transaction_params(params);
-        let refs: Vec<(&str, &str)> = owned
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let result: TransactionsDataEnvelope = self
-            .get(
-                &format!("plans/{}/payees/{}/transactions", plan_id, payee_id),
-                &refs,
-            )
-            .await?;
-        Ok((result.data.transactions, result.data.server_knowledge))
+    ) -> GetTransactionsBuilder<'_> {
+        GetTransactionsBuilder {
+            client: self,
+            scope: TransactionScope::ByPayee(payee_id),
+            plan_id,
+            since_date: None,
+            transaction_type: None,
+            last_knowledge_of_server: None,
+        }
     }
 
-    /// get_transactions_by_month returns all transactions for a specific budget month.
-    pub async fn get_transactions_by_month(
+    /// Returns all transactions for a specified month, excluding any pending transactions.
+    pub fn get_transactions_by_month(
         &self,
         plan_id: PlanId,
         month: NaiveDate,
-        params: Option<&TransactionListParams>,
-    ) -> Result<(Vec<Transaction>, i64), Error> {
-        let owned = build_transaction_params(params);
-        let refs: Vec<(&str, &str)> = owned
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let result: TransactionsDataEnvelope = self
-            .get(
-                &format!("plans/{}/months/{}/transactions", plan_id, month),
-                &refs,
-            )
-            .await?;
-        Ok((result.data.transactions, result.data.server_knowledge))
+    ) -> GetTransactionsBuilder<'_> {
+        GetTransactionsBuilder {
+            client: self,
+            scope: TransactionScope::ByMonth(month),
+            plan_id,
+            since_date: None,
+            transaction_type: None,
+            last_knowledge_of_server: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct GetScheduledTransactionsBuilder<'a> {
+    client: &'a Client,
+    plan_id: PlanId,
+    last_knowledge_of_server: Option<i64>,
+}
+
+impl<'a> GetScheduledTransactionsBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+        self.last_knowledge_of_server = Some(sk);
+        self
     }
 
-    /// get_scheduled_transactions returns all scheduled transactions for a plan.
-    /// The second return value is server knowledge for delta requests.
-    pub async fn get_scheduled_transactions(
-        &self,
-        plan_id: PlanId,
-        last_knowledge_of_server: Option<i64>,
-    ) -> Result<(Vec<ScheduledTransaction>, i64), Error> {
-        let sk_owned = last_knowledge_of_server.map(|sk| sk.to_string());
-        let params: Vec<(&str, &str)> = sk_owned
-            .as_deref()
-            .map(|sk| vec![("last_knowledge_of_server", sk)])
-            .unwrap_or_default();
+    pub async fn send(self) -> Result<(Vec<ScheduledTransaction>, i64), Error> {
+        let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
+            Some(&[("last_knowledge_of_server", &sk.to_string())])
+        } else {
+            None
+        };
         let result: ScheduledTransactionsDataEnvelope = self
+            .client
             .get(
-                &format!("plans/{}/scheduled_transactions", plan_id),
-                &params,
+                &format!("plans/{}/scheduled_transactions", self.plan_id),
+                params,
             )
             .await?;
         Ok((
@@ -508,8 +387,23 @@ impl Client {
             result.data.server_knowledge,
         ))
     }
+}
 
-    /// get_scheduled_transaction returns a single scheduled transaction by ID.
+impl Client {
+    /// Returns all scheduled transactions. The second return value is server knowledge for delta
+    /// requests.
+    pub fn get_scheduled_transactions(
+        &self,
+        plan_id: PlanId,
+    ) -> GetScheduledTransactionsBuilder<'_> {
+        GetScheduledTransactionsBuilder {
+            client: self,
+            plan_id,
+            last_knowledge_of_server: None,
+        }
+    }
+
+    /// Returns a single scheduled transaction.
     pub async fn get_scheduled_transaction(
         &self,
         plan_id: PlanId,
@@ -523,145 +417,6 @@ impl Client {
                 ),
                 NO_PARAMS,
             )
-            .await?;
-        Ok(result.data.scheduled_transaction)
-    }
-
-    /// create_transaction creates a single transaction.
-    pub async fn create_transaction(
-        &self,
-        plan_id: PlanId,
-        transaction: SaveTransaction,
-    ) -> Result<CreateTransactionResponse, Error> {
-        let result: CreateTransactionResponseEnvelope = self
-            .post(
-                &format!("plans/{}/transactions", plan_id),
-                &SaveTransactionWrapper { transaction },
-            )
-            .await?;
-        Ok(result.data)
-    }
-
-    /// create_transactions creates multiple transactions in a single request.
-    pub async fn create_transactions(
-        &self,
-        plan_id: PlanId,
-        transactions: Vec<SaveTransaction>,
-    ) -> Result<CreateTransactionsResponse, Error> {
-        let result: CreateTransactionsResponseEnvelope = self
-            .post(
-                &format!("plans/{}/transactions", plan_id),
-                &SaveTransactionsWrapper { transactions },
-            )
-            .await?;
-        Ok(result.data)
-    }
-
-    /// import_transactions triggers an import from linked accounts.
-    pub async fn import_transactions(
-        &self,
-        plan_id: PlanId,
-    ) -> Result<ImportTransactionsResponse, Error> {
-        let result: ImportTransactionsResponseEnvelope = self
-            .post(
-                &format!("plans/{}/transactions/import", plan_id),
-                &EmptyBody {},
-            )
-            .await?;
-        Ok(result.data)
-    }
-
-    /// create_scheduled_transaction creates a new scheduled transaction.
-    pub async fn create_scheduled_transaction(
-        &self,
-        plan_id: PlanId,
-        transaction: SaveScheduledTransaction,
-    ) -> Result<ScheduledTransaction, Error> {
-        let result: ScheduledTransactionDataEnvelope = self
-            .post(
-                &format!("plans/{}/scheduled_transactions", plan_id),
-                &SaveScheduledTransactionWrapper { transaction },
-            )
-            .await?;
-        Ok(result.data.scheduled_transaction)
-    }
-
-    /// update_transaction replaces a transaction.
-    pub async fn update_transaction(
-        &self,
-        plan_id: PlanId,
-        transaction_id: &str,
-        transaction: UpdateTransaction,
-    ) -> Result<CreateTransactionResponse, Error> {
-        let result: CreateTransactionResponseEnvelope = self
-            .put(
-                &format!("plans/{}/transactions/{}", plan_id, transaction_id),
-                &UpdateTransactionWrapper { transaction },
-            )
-            .await?;
-        Ok(result.data)
-    }
-
-    /// update_scheduled_transaction replaces a scheduled transaction.
-    pub async fn update_scheduled_transaction(
-        &self,
-        plan_id: PlanId,
-        transaction_id: Uuid,
-        transaction: SaveScheduledTransaction,
-    ) -> Result<ScheduledTransaction, Error> {
-        let result: ScheduledTransactionDataEnvelope = self
-            .put(
-                &format!(
-                    "plans/{}/scheduled_transactions/{}",
-                    plan_id, transaction_id
-                ),
-                &SaveScheduledTransactionWrapper { transaction },
-            )
-            .await?;
-        Ok(result.data.scheduled_transaction)
-    }
-
-    /// update_transactions applies partial updates to multiple transactions.
-    pub async fn update_transactions(
-        &self,
-        plan_id: PlanId,
-        transactions: Vec<UpdateTransaction>,
-    ) -> Result<CreateTransactionsResponse, Error> {
-        let result: CreateTransactionsResponseEnvelope = self
-            .patch(
-                &format!("plans/{}/transactions", plan_id),
-                &UpdateTransactionsWrapper { transactions },
-            )
-            .await?;
-        Ok(result.data)
-    }
-
-    /// delete_transaction deletes a transaction and returns the deleted record.
-    pub async fn delete_transaction(
-        &self,
-        plan_id: PlanId,
-        transaction_id: &str,
-    ) -> Result<Transaction, Error> {
-        let result: TransactionDataEnvelope = self
-            .delete(&format!(
-                "plans/{}/transactions/{}",
-                plan_id, transaction_id
-            ))
-            .await?;
-        Ok(result.data.transaction)
-    }
-
-    /// delete_scheduled_transaction deletes a scheduled transaction and returns the deleted record.
-    pub async fn delete_scheduled_transaction(
-        &self,
-        plan_id: PlanId,
-        transaction_id: Uuid,
-    ) -> Result<ScheduledTransaction, Error> {
-        let result: ScheduledTransactionDataEnvelope = self
-            .delete(&format!(
-                "plans/{}/scheduled_transactions/{}",
-                plan_id, transaction_id
-            ))
             .await?;
         Ok(result.data.scheduled_transaction)
     }

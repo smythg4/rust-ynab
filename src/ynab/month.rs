@@ -1,11 +1,11 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
+use crate::PlanId;
 use crate::ynab::category::Category;
 use crate::ynab::client::Client;
-use crate::ynab::errors::Error;
-use crate::PlanId;
 use crate::ynab::common::NO_PARAMS;
+use crate::ynab::errors::Error;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MonthDataEnvelope {
@@ -39,35 +39,66 @@ pub struct Month {
     pub to_be_budgeted: i64,
     pub age_of_money: Option<usize>,
     pub deleted: bool,
-    pub categories: Option<Vec<Category>>,
+    #[serde(default)]
+    pub categories: Vec<Category>,
+}
+
+#[derive(Debug)]
+pub struct GetMonthsBuilder<'a> {
+    client: &'a Client,
+    plan_id: PlanId,
+    last_knowledge_of_server: Option<i64>,
+}
+
+impl<'a> GetMonthsBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+        self.last_knowledge_of_server = Some(sk);
+        self
+    }
+
+    pub async fn send(self) -> Result<(Vec<Month>, i64), Error> {
+        let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
+            Some(&[("last_knowledge_of_server", &sk.to_string())])
+        } else {
+            None
+        };
+        let result: MonthsDataEnvelope = self
+            .client
+            .get(&format!("plans/{}/months", self.plan_id), params)
+            .await?;
+        Ok((result.data.months, result.data.server_knowledge))
+    }
 }
 
 impl Client {
-    /// get_months returns all budget months for a plan.
-    /// The second return value is server knowledge for delta requests.
-    pub async fn get_months(
-        &self,
-        plan_id: PlanId,
-        last_server_knowledge: Option<i64>,
-    ) -> Result<Vec<Month>, Error> {
-        let sk_owned = last_server_knowledge.map(|sk| sk.to_string());
-        let params: Vec<(&str, &str)> = sk_owned
-            .as_deref()
-            .map(|sk| vec![("last_knowledge_of_server", sk)])
-            .unwrap_or_default();
-
-        let result: MonthsDataEnvelope = self
-            .get(&format!("plans/{}/months", plan_id), &params)
-            .await?;
-        Ok(result.data.months)
+    /// Returns all plan months. The second return value is server knowledge for delta requests.
+    pub fn get_months(&self, plan_id: PlanId) -> GetMonthsBuilder<'_> {
+        GetMonthsBuilder {
+            client: self,
+            plan_id,
+            last_knowledge_of_server: None,
+        }
     }
 
-    /// get_month returns a single budget month including its category details.
+    /// Returns a single plan month.
     pub async fn get_month(&self, plan_id: PlanId, month: NaiveDate) -> Result<Month, Error> {
         let result: MonthDataEnvelope = self
             .get(&format!("plans/{}/months/{}", plan_id, month), NO_PARAMS)
             .await?;
-
         Ok(result.data.month)
     }
 }
+
+  #[cfg(test)]
+  mod tests {
+      use super::*;
+
+      #[test]
+      fn deserializes_without_optional_fields() {
+          let json = r#"{ "month": "2024-01-01", "note": null, "income": 0,
+              "budgeted": 0, "activity": 0, "to_be_budgeted": 0,
+              "age_of_money": null, "deleted": false }"#;
+          let month: Month = serde_json::from_str(json).unwrap();
+          assert!(month.categories.is_empty());
+      }
+  }

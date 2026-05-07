@@ -35,49 +35,51 @@ struct CategoryGroupDataEnvelope {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CategoryGroupData {
-    category_groups: CategoryGroup,
-    server_knowldge: i64,
+    category_group: CategoryGroup,
+    server_knowledge: i64,
 }
 
 /// CategoryGroup represents a group of budget categories.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryGroup {
-    id: Uuid,
-    name: String,
-    hidden: bool,
-    deleted: bool,
-    categories: Vec<Category>,
+    pub id: Uuid,
+    pub name: String,
+    pub hidden: bool,
+    pub deleted: bool,
+    #[serde(default)]
+    pub categories: Vec<Category>,
 }
 
 /// Category represents a single budget category with goal and balance information.
 /// Amounts are in milliunits (divide by 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Category {
-    id: Uuid,
-    category_group_id: Uuid,
-    category_group_name: String,
-    name: String,
-    hidden: bool,
-    original_category_group_id: Option<Uuid>,
-    note: Option<String>,
-    budgeted: i64,
-    activity: i64,
-    balance: i64,
-    goal_type: Option<GoalType>,
-    goal_needs_whole_amount: Option<bool>,
-    goal_day: Option<usize>,
-    goal_cadence: Option<usize>,
-    goal_cadence_frequency: Option<usize>,
-    goal_creation_month: Option<NaiveDate>,
-    goal_target: Option<i64>,
-    goal_target_date: Option<NaiveDate>,
-    goal_percentage_complete: Option<usize>,
-    goal_months_to_budget: Option<usize>,
-    goal_under_funded: Option<i64>,
-    goal_overall_funded: Option<i64>,
-    goal_overall_left: Option<i64>,
-    goal_snoozed_at: Option<DateTime<chrono::Utc>>,
-    deleted: bool,
+    pub id: Uuid,
+    pub category_group_id: Uuid,
+    pub category_group_name: Option<String>,
+    pub name: String,
+    pub hidden: bool,
+    pub original_category_group_id: Option<Uuid>,
+    pub note: Option<String>,
+    pub budgeted: i64,
+    pub activity: i64,
+    pub balance: i64,
+    pub goal_type: Option<GoalType>,
+    pub goal_needs_whole_amount: Option<bool>,
+    pub goal_day: Option<usize>,
+    pub goal_cadence: Option<usize>,
+    pub goal_cadence_frequency: Option<usize>,
+    pub goal_creation_month: Option<NaiveDate>,
+    pub goal_target: Option<i64>,
+    pub goal_target_date: Option<NaiveDate>,
+    pub goal_target_month: Option<NaiveDate>,
+    pub goal_percentage_complete: Option<usize>,
+    pub goal_months_to_budget: Option<usize>,
+    pub goal_under_funded: Option<i64>,
+    pub goal_overall_funded: Option<i64>,
+    pub goal_overall_left: Option<i64>,
+    pub goal_snoozed_at: Option<DateTime<chrono::Utc>>,
+    pub deleted: bool,
 }
 
 /// GoalType represents the type of savings or spending goal assigned to a category.
@@ -97,36 +99,60 @@ pub enum GoalType {
     Other,
 }
 
-impl Client {
-    /// get_categories returns all category groups and their categories for a plan.
-    /// The second return value is server knowledge for delta requests.
-    pub async fn get_categories(
-        &self,
-        plan_id: PlanId,
-        last_server_knowledge: Option<i64>,
-    ) -> Result<(Vec<CategoryGroup>, i64), Error> {
-        let sk_owned = last_server_knowledge.map(|sk| sk.to_string());
-        let params: Vec<(&str, &str)> = sk_owned
-            .as_deref()
-            .map(|sk| vec![("last_knowledge_of_server", sk)])
-            .unwrap_or_default();
+#[derive(Debug)]
+pub struct GetCategoriesBuilder<'a> {
+    client: &'a Client,
+    plan_id: PlanId,
+    last_knowledge_of_server: Option<i64>,
+}
 
+impl<'a> GetCategoriesBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: i64) -> GetCategoriesBuilder<'a> {
+        self.last_knowledge_of_server = Some(sk);
+        self
+    }
+
+    pub async fn send(self) -> Result<(Vec<CategoryGroup>, i64), Error> {
+        let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
+            Some(&[("last_knowledge_of_server", &sk.to_string())])
+        } else {
+            None
+        };
         let result: CategoriesDataEnvelope = self
-            .get(&format!("plans/{}/categories", plan_id), &params)
+            .client
+            .get(&format!("plans/{}/categories", self.plan_id), params)
             .await?;
         Ok((result.data.category_groups, result.data.server_knowledge))
     }
+}
 
-    /// get_category returns a single category by ID.
+impl Client {
+    /// Returns all categories grouped by category group. Amounts (assigned, activity, available,
+    /// etc.) are specific to the current plan month (UTC). The second return value is server
+    /// knowledge for delta requests.
+    pub fn get_categories(&self, plan_id: PlanId) -> GetCategoriesBuilder<'_> {
+        GetCategoriesBuilder {
+            client: self,
+            plan_id,
+            last_knowledge_of_server: None,
+        }
+    }
+
+    /// Returns a single category. Amounts (assigned, activity, available, etc.) are specific to
+    /// the current plan month (UTC).
     pub async fn get_category(&self, plan_id: PlanId, cat_id: Uuid) -> Result<Category, Error> {
         let result: CategoryDataEnvelope = self
-            .get(&format!("plans/{}/categories/{}", plan_id, cat_id), NO_PARAMS)
+            .get(
+                &format!("plans/{}/categories/{}", plan_id, cat_id),
+                NO_PARAMS,
+            )
             .await?;
 
         Ok(result.data.category)
     }
 
-    /// get_category_for_month returns a category's data for a specific budget month.
+    /// Returns a single category for a specific plan month. Amounts (assigned, activity,
+    /// available, etc.) are specific to the current plan month (UTC).
     pub async fn get_category_for_month(
         &self,
         plan_id: PlanId,

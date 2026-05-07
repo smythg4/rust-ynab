@@ -22,7 +22,7 @@ pub struct User {
 }
 
 impl Client {
-    /// get_user returns the authenticated user.
+    /// Returns authenticated user information.
     pub async fn get_user(&self) -> Result<User, Error> {
         let result: UserDataEnvelope = self.get("user", NO_PARAMS).await?;
         Ok(result.data.user)

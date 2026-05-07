@@ -55,7 +55,8 @@ pub struct Plan {
     pub last_month: NaiveDate,
     pub date_format: DateFormat,
     pub currency_format: CurrencyFormat,
-    pub accounts: Option<Vec<Account>>,
+    #[serde(default)]
+    pub accounts: Vec<Account>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -100,6 +101,12 @@ pub struct PlanDetails {
     pub subtransactions: Vec<Subtransaction>,
     pub scheduled_transactions: Vec<ScheduledTransaction>,
     pub scheduled_subtransactions: Vec<ScheduledSubtransaction>,
+}
+
+impl PlanDetails {
+    pub fn id(&self) -> PlanId {
+        PlanId::Id(self.plan.id)
+    }
 }
 
 #[derive(Debug)]
@@ -152,9 +159,7 @@ impl<'a> GetPlanBuilder<'a> {
     }
 }
 impl Client {
-    /// get_plans returns all plans for the authenticated user. include_accounts flag indicates
-    /// whether you want the returned payload to include all the account information for each
-    /// plan.
+    /// Returns plans list with summary information.
     pub fn get_plans(&self) -> GetPlansBuilder<'_> {
         GetPlansBuilder {
             client: self,
@@ -162,7 +167,7 @@ impl Client {
         }
     }
 
-    /// get_plan_settings returns the date and currency format settings for a plan.
+    /// Returns settings for a plan.
     pub async fn get_plan_settings(&self, plan_id: PlanId) -> Result<PlanSettings, Error> {
         let result: PlanSettingsDataEnvelope = self
             .get(&format!("plans/{}/settings", plan_id), NO_PARAMS)
@@ -170,10 +175,8 @@ impl Client {
         Ok(result.data.settings)
     }
 
-    /// get_plan returns the full export for the given plan, including all
-    /// sub-resources. The second return value is server knowledge for delta requests.
-    /// For large plans this response can be substantial —
-    /// consider using specific resource endpoints for targeted queries.
+    /// Returns a single plan with all related entities. This resource is effectively a full plan
+    /// export. The second return value is server knowledge for delta requests.
     pub fn get_plan(&self, plan_id: PlanId) -> GetPlanBuilder<'_> {
         GetPlanBuilder {
             plan_id,

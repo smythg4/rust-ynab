@@ -91,7 +91,7 @@ impl<'a> GetAccountsBuilder<'a> {
 }
 
 impl Client {
-    /// get_accounts returns all accounts for a plan. The second return value is server knowledge for delta requests.
+    /// Returns all accounts. The second return value is server knowledge for delta requests.
     pub fn get_accounts(&self, plan_id: PlanId) -> GetAccountsBuilder<'_> {
         GetAccountsBuilder {
             client: self,
@@ -100,7 +100,7 @@ impl Client {
         }
     }
 
-    /// get_account returns a single account by ID.
+    /// Returns a single account.
     pub async fn get_account(&self, plan_id: PlanId, account_id: Uuid) -> Result<Account, Error> {
         let result: AccountDataEnvelope = self
             .get(
