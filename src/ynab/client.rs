@@ -8,7 +8,6 @@ use std::sync::Arc;
 pub struct Client {
     base_url: reqwest::Url,
     http_client: reqwest::Client,
-    api_key: String,
     limiter: Option<Arc<DefaultDirectRateLimiter>>,
 }
 
@@ -20,7 +19,6 @@ impl Client {
         Ok(Self {
             base_url: reqwest::Url::parse("https://api.ynab.com/v1").unwrap(),
             http_client,
-            api_key,
             limiter: None,
         })
     }
@@ -90,10 +88,10 @@ impl Client {
         Ok(self)
     }
 
-    pub(crate) async fn get<T: serde::de::DeserializeOwned>(
+    pub(crate) async fn get<T: serde::de::DeserializeOwned, Q: serde::ser::Serialize + ?Sized>(
         &self,
         endpoint: &str,
-        params: &[(&str, &str)],
+        params: Option<&Q>,
     ) -> Result<T, Error> {
         if let Some(limiter) = &self.limiter {
             limiter.until_ready().await;
@@ -104,11 +102,106 @@ impl Client {
             .expect("base URL must be a valid base")
             .extend(endpoint.split('/'));
 
-        if !params.is_empty() {
-            url.query_pairs_mut().extend_pairs(params.iter());
+        let mut builder = self.http_client.get(url);
+        if let Some(p) = params {
+            builder = builder.query(p);
+        }
+        let res = builder.send().await?;
+        let status = res.status();
+
+        if !status.is_success() {
+            let err_body: ErrorResponse = res.json().await?;
+            return Err(Error::new_api_error(status, err_body.error));
         }
 
-        let res = self.http_client.get(url).send().await?;
+        res.json().await.map_err(Into::into)
+    }
+
+    pub(crate) async fn post<T: serde::de::DeserializeOwned, B: serde::ser::Serialize>(
+        &self,
+        endpoint: &str,
+        body: B,
+    ) -> Result<T, Error> {
+        if let Some(limiter) = &self.limiter {
+            limiter.until_ready().await;
+        }
+        let mut url = self.base_url.clone();
+        url.path_segments_mut()
+            .expect("base URL must be a valid base")
+            .extend(endpoint.split('/'));
+
+        let res = self.http_client.post(url).json(&body).send().await?;
+        let status = res.status();
+
+        if !status.is_success() {
+            let err_body: ErrorResponse = res.json().await?;
+            return Err(Error::new_api_error(status, err_body.error));
+        }
+
+        res.json().await.map_err(Into::into)
+    }
+
+    pub(crate) async fn patch<T: serde::de::DeserializeOwned, B: serde::ser::Serialize>(
+        &self,
+        endpoint: &str,
+        body: B,
+    ) -> Result<T, Error> {
+        if let Some(limiter) = &self.limiter {
+            limiter.until_ready().await;
+        }
+        let mut url = self.base_url.clone();
+        url.path_segments_mut()
+            .expect("base URL must be a valid base")
+            .extend(endpoint.split('/'));
+
+        let res = self.http_client.patch(url).json(&body).send().await?;
+        let status = res.status();
+
+        if !status.is_success() {
+            let err_body: ErrorResponse = res.json().await?;
+            return Err(Error::new_api_error(status, err_body.error));
+        }
+
+        res.json().await.map_err(Into::into)
+    }
+
+    pub(crate) async fn put<T: serde::de::DeserializeOwned, B: serde::ser::Serialize>(
+        &self,
+        endpoint: &str,
+        body: B,
+    ) -> Result<T, Error> {
+        if let Some(limiter) = &self.limiter {
+            limiter.until_ready().await;
+        }
+        let mut url = self.base_url.clone();
+        url.path_segments_mut()
+            .expect("base URL must be a valid base")
+            .extend(endpoint.split('/'));
+
+        let res = self.http_client.put(url).json(&body).send().await?;
+        let status = res.status();
+
+        if !status.is_success() {
+            let err_body: ErrorResponse = res.json().await?;
+            return Err(Error::new_api_error(status, err_body.error));
+        }
+
+        res.json().await.map_err(Into::into)
+    }
+
+    pub(crate) async fn delete<T: serde::de::DeserializeOwned>(
+        &self,
+        endpoint: &str,
+    ) -> Result<T, Error> {
+        if let Some(limiter) = &self.limiter {
+            limiter.until_ready().await;
+        }
+        let mut url = self.base_url.clone();
+        url.path_segments_mut()
+            .expect("base URL must be a valid base")
+            .extend(endpoint.split('/'));
+
+        let res = self.http_client.delete(url).send().await?;
         let status = res.status();
 
         if !status.is_success() {

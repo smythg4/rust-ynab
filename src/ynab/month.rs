@@ -1,10 +1,11 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::ynab::category::Category;
 use crate::ynab::client::Client;
 use crate::ynab::errors::Error;
+use crate::PlanId;
+use crate::ynab::common::NO_PARAMS;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MonthDataEnvelope {
@@ -46,7 +47,7 @@ impl Client {
     /// The second return value is server knowledge for delta requests.
     pub async fn get_months(
         &self,
-        plan_id: Uuid,
+        plan_id: PlanId,
         last_server_knowledge: Option<i64>,
     ) -> Result<Vec<Month>, Error> {
         let sk_owned = last_server_knowledge.map(|sk| sk.to_string());
@@ -62,9 +63,9 @@ impl Client {
     }
 
     /// get_month returns a single budget month including its category details.
-    pub async fn get_month(&self, plan_id: Uuid, month: NaiveDate) -> Result<Month, Error> {
+    pub async fn get_month(&self, plan_id: PlanId, month: NaiveDate) -> Result<Month, Error> {
         let result: MonthDataEnvelope = self
-            .get(&format!("plans/{}/months/{}", plan_id, month), &[])
+            .get(&format!("plans/{}/months/{}", plan_id, month), NO_PARAMS)
             .await?;
 
         Ok(result.data.month)

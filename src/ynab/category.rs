@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 use crate::Client;
 use crate::Error;
+use crate::PlanId;
+use crate::ynab::common::NO_PARAMS;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CategoriesDataEnvelope {
@@ -100,7 +102,7 @@ impl Client {
     /// The second return value is server knowledge for delta requests.
     pub async fn get_categories(
         &self,
-        plan_id: Uuid,
+        plan_id: PlanId,
         last_server_knowledge: Option<i64>,
     ) -> Result<(Vec<CategoryGroup>, i64), Error> {
         let sk_owned = last_server_knowledge.map(|sk| sk.to_string());
@@ -116,9 +118,9 @@ impl Client {
     }
 
     /// get_category returns a single category by ID.
-    pub async fn get_category(&self, plan_id: Uuid, cat_id: Uuid) -> Result<Category, Error> {
+    pub async fn get_category(&self, plan_id: PlanId, cat_id: Uuid) -> Result<Category, Error> {
         let result: CategoryDataEnvelope = self
-            .get(&format!("plans/{}/categories/{}", plan_id, cat_id), &[])
+            .get(&format!("plans/{}/categories/{}", plan_id, cat_id), NO_PARAMS)
             .await?;
 
         Ok(result.data.category)
@@ -127,14 +129,14 @@ impl Client {
     /// get_category_for_month returns a category's data for a specific budget month.
     pub async fn get_category_for_month(
         &self,
-        plan_id: Uuid,
+        plan_id: PlanId,
         cat_id: Uuid,
         month: NaiveDate,
     ) -> Result<Category, Error> {
         let result: CategoryDataEnvelope = self
             .get(
                 &format!("plans/{}/months/{}/categories/{}", plan_id, month, cat_id),
-                &[],
+                NO_PARAMS,
             )
             .await?;
 

@@ -1,7 +1,11 @@
+pub mod account;
 pub mod category;
 pub mod client;
+pub mod common;
 pub mod errors;
 pub mod month;
+pub mod movements;
 pub mod payee;
 pub mod plan;
 pub mod transaction;
+pub mod user;
