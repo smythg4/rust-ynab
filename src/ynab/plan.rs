@@ -42,7 +42,8 @@ struct PlanDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct PlanData {
     plans: Vec<Plan>,
-    default_plan: Option<Plan>,
+    // users can use PlanId::Default to directly interact with the default plan
+    _default_plan: Option<Plan>,
 }
 
 /// Summary information for a plan.

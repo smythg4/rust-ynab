@@ -22,22 +22,35 @@ let client = Client::new(std::env::var("YNAB_TOKEN")?)?;
 ### Quick Start
 
 ```rust
-use rust_ynab::{Client, Error};
+use rust_ynab::{Client, PlanId};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new(std::env::var("YNAB_TOKEN")?)?;
 
-    let plans = client.get_plans(true).await?;
+    let plans = client.get_plans().include_accounts().send().await?;
     for plan in plans {
         println!("{}", plan.name);
-        for acct in plan.accounts.unwrap_or_default() {
+        for acct in &plan.accounts {
             println!("   {}", acct.name);
         }
     }
 
     Ok(())
 }
+```
+
+### Builder Pattern
+
+Methods that support optional parameters use a builder. Call the factory method on the client, chain any options, then call `.send()`:
+
+```rust
+// delta request — only fetch changes since last sync
+let (groups, server_knowledge) = client
+    .get_categories(PlanId::LastUsed)
+    .with_server_knowledge(last_known)
+    .send()
+    .await?;
 ```
 
 ## Rate Limiting
@@ -54,14 +67,14 @@ Rate limiting is opt-in. Omit `with_rate_limiter` for scripts or one-off tools w
 
 ## Error Handling
 
-Errors from the API are returned as variants of `errors::Error` and can be matched directly:
+Errors from the API are returned as variants of `Error` and can be matched directly:
 
 ```rust
-match client.get_plans(false).await {
-    Err(Error::NotFound(e)) => eprintln!("not found: {}", e),
+match client.get_plan(PlanId::LastUsed).send().await {
+    Err(Error::NotFound(e)) => eprintln!("plan not found: {}", e),
     Err(Error::Unauthorized(e)) => eprintln!("check your token: {}", e),
-    Err(e) => return Err(e),
-    Ok(plans) => { /* ... */ }
+    Err(e) => return Err(Box::new(e)),
+    Ok((plan, _)) => { /* ... */ }
 }
 ```
 
@@ -73,7 +86,27 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 | Method | Endpoint |
 |--------|----------|
 | `get_plans` | `GET /plans` |
+| `get_plan` | `GET /plans/{plan_id}` |
 | `get_plan_settings` | `GET /plans/{plan_id}/settings` |
+
+### Accounts
+| Method | Endpoint |
+|--------|----------|
+| `get_accounts` | `GET /plans/{plan_id}/accounts` |
+| `get_account` | `GET /plans/{plan_id}/accounts/{account_id}` |
+| `create_account` | `POST /plans/{plan_id}/accounts` |
+
+### Categories
+| Method | Endpoint |
+|--------|----------|
+| `get_categories` | `GET /plans/{plan_id}/categories` |
+| `get_category` | `GET /plans/{plan_id}/categories/{category_id}` |
+| `get_category_for_month` | `GET /plans/{plan_id}/months/{month}/categories/{category_id}` |
+| `create_category` | `POST /plans/{plan_id}/categories` |
+| `create_category_group` | `POST /plans/{plan_id}/category_groups` |
+| `update_category` | `PATCH /plans/{plan_id}/categories/{category_id}` |
+| `update_category_for_month` | `PATCH /plans/{plan_id}/months/{month}/categories/{category_id}` |
+| `update_category_group` | `PATCH /plans/{plan_id}/category_groups/{category_group_id}` |
 
 ### Months
 | Method | Endpoint |
@@ -84,11 +117,73 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 ### Payees
 | Method | Endpoint |
 |--------|----------|
-| `get_payees` | `GET /plans/{plan_id}/payees` |
+| `get_payees` † | `GET /plans/{plan_id}/payees` |
 | `get_payee` | `GET /plans/{plan_id}/payees/{payee_id}` |
 | `get_payee_locations` | `GET /plans/{plan_id}/payee_locations` |
 | `get_payee_location` | `GET /plans/{plan_id}/payee_locations/{payee_location_id}` |
 | `get_payee_locations_by_payee` | `GET /plans/{plan_id}/payees/{payee_id}/payee_locations` |
+| `create_payee` † | `POST /plans/{plan_id}/payees` |
+| `update_payee` † | `PATCH /plans/{plan_id}/payees/{payee_id}` |
+
+### Transactions
+| Method | Endpoint |
+|--------|----------|
+| `get_transactions` † | `GET /plans/{plan_id}/transactions` |
+| `get_transaction` | `GET /plans/{plan_id}/transactions/{transaction_id}` |
+| `get_transactions_by_account` † | `GET /plans/{plan_id}/accounts/{account_id}/transactions` |
+| `get_transactions_by_category` † | `GET /plans/{plan_id}/categories/{category_id}/transactions` |
+| `get_transactions_by_payee` † | `GET /plans/{plan_id}/payees/{payee_id}/transactions` |
+| `get_transactions_by_month` † | `GET /plans/{plan_id}/months/{month}/transactions` |
+| `create_transaction` | `POST /plans/{plan_id}/transactions` |
+| `create_transactions` | `POST /plans/{plan_id}/transactions` |
+| `update_transaction` | `PUT /plans/{plan_id}/transactions/{transaction_id}` |
+| `update_transactions` | `PATCH /plans/{plan_id}/transactions` |
+| `delete_transaction` | `DELETE /plans/{plan_id}/transactions/{transaction_id}` |
+| `import_transactions` | `POST /plans/{plan_id}/transactions/import` |
+
+### Scheduled Transactions
+| Method | Endpoint |
+|--------|----------|
+| `get_scheduled_transactions` † | `GET /plans/{plan_id}/scheduled_transactions` |
+| `get_scheduled_transaction` | `GET /plans/{plan_id}/scheduled_transactions/{scheduled_transaction_id}` |
+| `create_scheduled_transaction` | `POST /plans/{plan_id}/scheduled_transactions` |
+| `update_scheduled_transaction` | `PUT /plans/{plan_id}/scheduled_transactions/{scheduled_transaction_id}` |
+| `delete_scheduled_transaction` | `DELETE /plans/{plan_id}/scheduled_transactions/{scheduled_transaction_id}` |
+
+### Money Movements
+| Method | Endpoint |
+|--------|----------|
+| `get_money_movements` | `GET /plans/{plan_id}/money_movements` |
+| `get_money_movements_by_month` | `GET /plans/{plan_id}/months/{month}/money_movements` |
+| `get_money_movement_groups` | `GET /plans/{plan_id}/money_movement_groups` |
+| `get_money_movement_groups_by_month` | `GET /plans/{plan_id}/months/{month}/money_movement_groups` |
+
+### User
+| Method | Endpoint |
+|--------|----------|
+| `get_user` | `GET /user` |
+
+† Supports `.with_server_knowledge(sk)` on the builder for delta requests.
+
+## Testing
+
+Unit tests use [wiremock](https://github.com/LukeMathWalker/wiremock-rs) to verify deserialization, error handling, and request shape without hitting the live API:
+
+```
+cargo test
+```
+
+Integration tests run against a real YNAB plan and require environment variables:
+
+```
+YNAB_TOKEN=<token> YNAB_TEST_PLAN_ID=<plan_id> cargo test --features integration
+```
+
+## Roadmap
+
+- [ ] Unit tests for all modules (transactions, scheduled transactions, categories, payees, months, plans)
+- [ ] Integration test suite against a live YNAB plan
+- [ ] Usage examples mirroring common workflows
 
 ## License
 

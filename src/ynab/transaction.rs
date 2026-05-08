@@ -17,6 +17,7 @@ struct TransactionDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct TransactionData {
     transaction: Transaction,
+    server_knowledge: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,6 +50,21 @@ struct ScheduledTransactionsDataEnvelope {
 struct ScheduledTransactionsData {
     scheduled_transactions: Vec<ScheduledTransaction>,
     server_knowledge: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct SaveTransactionsDataEnvelope {
+    data: SaveTransactionsResponse,
+}
+
+/// Response from creating or batch-updating transactions.
+#[derive(Debug, Deserialize)]
+pub struct SaveTransactionsResponse {
+    pub transaction_ids: Vec<String>,
+    pub transaction: Option<Transaction>,
+    pub transactions: Option<Vec<Transaction>>,
+    pub duplicate_import_ids: Option<Vec<String>>,
+    pub server_knowledge: i64,
 }
 
 // --- Enums ---
@@ -93,10 +109,10 @@ pub enum Frequency {
     Monthly,
     #[serde(rename = "everyOtherMonth")]
     EveryOtherMonth,
-    #[serde(rename = "everyThreeMonths")]
-    EveryThreeMonths,
-    #[serde(rename = "everyFourMonths")]
-    EveryFourMonths,
+    #[serde(rename = "every3Months")]
+    Every3Months,
+    #[serde(rename = "every4Months")]
+    Every4Months,
     #[serde(rename = "twiceAYear")]
     TwiceAYear,
     #[serde(rename = "yearly")]
@@ -422,4 +438,310 @@ impl Client {
             .await?;
         Ok(result.data.scheduled_transaction)
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ImportTransactionsDataEnvelope {
+    data: ImportTransactionsData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ImportTransactionsData {
+    transaction_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Default, Serialize)]
+struct Empty {}
+
+impl Client {
+    /// Delete a transaction. Returns deleted transaction and server_knowledge for delta requests
+    pub async fn delete_transaction(
+        &self,
+        plan_id: PlanId,
+        tx_id: Uuid,
+    ) -> Result<(Transaction, i64), Error> {
+        let result: TransactionDataEnvelope = self
+            .delete(&format!("plans/{}/transactions/{}", plan_id, tx_id))
+            .await?;
+        Ok((result.data.transaction, result.data.server_knowledge))
+    }
+
+    /// Imports available transactions on all linked accounts for the given
+    /// plan. The response for this endpoint contains the transaction
+    /// ids that have been imported.
+    pub async fn import_transactions(&self, plan_id: PlanId) -> Result<Vec<Uuid>, Error> {
+        let result: ImportTransactionsDataEnvelope = self
+            .post(
+                &format!("plans/{}/transactions/import", plan_id),
+                Empty::default(),
+            )
+            .await?;
+        Ok(result.data.transaction_ids)
+    }
+}
+
+/// A subtransaction within a split transaction to be created or updated.
+#[derive(Debug, Serialize)]
+pub struct SaveSubTransaction {
+    pub amount: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
+
+/// Request body for creating a new transaction.
+#[derive(Debug, Serialize)]
+pub struct NewTransaction {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleared: Option<ClearedStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approved: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flag_color: Option<FlagColor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtransactions: Option<Vec<SaveSubTransaction>>,
+}
+
+/// Request body for updating an existing transaction (PUT single).
+#[derive(Debug, Serialize)]
+pub struct ExistingTransaction {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleared: Option<ClearedStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approved: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flag_color: Option<FlagColor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtransactions: Option<Vec<SaveSubTransaction>>,
+}
+
+/// Request body for a single transaction within a batch update (PATCH).
+/// Either `id` or `import_id` must be specified to identify the transaction.
+#[derive(Debug, Serialize)]
+pub struct SaveTransactionWithIdOrImportId {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleared: Option<ClearedStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approved: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flag_color: Option<FlagColor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtransactions: Option<Vec<SaveSubTransaction>>,
+}
+
+#[derive(Debug, Serialize)]
+struct PostTransactionsWrapper {
+    transaction: Option<NewTransaction>,
+    transactions: Option<Vec<NewTransaction>>,
+}
+
+#[derive(Debug, Serialize)]
+struct PutTransactionWrapper {
+    transaction: ExistingTransaction,
+}
+
+#[derive(Debug, Serialize)]
+struct PatchTransactionsWrapper {
+    transactions: Vec<SaveTransactionWithIdOrImportId>,
+}
+
+impl Client {
+    /// Creates a single transaction. Returns the full save response including server knowledge.
+    pub async fn create_transaction(
+        &self,
+        plan_id: PlanId,
+        transaction: NewTransaction,
+    ) -> Result<SaveTransactionsResponse, Error> {
+        let result: SaveTransactionsDataEnvelope = self
+            .post(
+                &format!("plans/{}/transactions", plan_id),
+                PostTransactionsWrapper {
+                    transaction: Some(transaction),
+                    transactions: None,
+                },
+            )
+            .await?;
+        Ok(result.data)
+    }
+
+    /// Creates multiple transactions. Returns the full save response including server knowledge.
+    pub async fn create_transactions(
+        &self,
+        plan_id: PlanId,
+        transactions: Vec<NewTransaction>,
+    ) -> Result<SaveTransactionsResponse, Error> {
+        let result: SaveTransactionsDataEnvelope = self
+            .post(
+                &format!("plans/{}/transactions", plan_id),
+                PostTransactionsWrapper {
+                    transaction: None,
+                    transactions: Some(transactions),
+                },
+            )
+            .await?;
+        Ok(result.data)
+    }
+
+    /// Updates multiple transactions. Returns the full save response including server knowledge.
+    pub async fn update_transactions(
+        &self,
+        plan_id: PlanId,
+        transactions: Vec<SaveTransactionWithIdOrImportId>,
+    ) -> Result<SaveTransactionsResponse, Error> {
+        let result: SaveTransactionsDataEnvelope = self
+            .patch(
+                &format!("plans/{}/transactions", plan_id),
+                PatchTransactionsWrapper { transactions },
+            )
+            .await?;
+        Ok(result.data)
+    }
+
+    /// Updates a single transaction. Returns the updated transaction and server knowledge.
+    pub async fn update_transaction(
+        &self,
+        plan_id: PlanId,
+        tx_id: Uuid,
+        transaction: ExistingTransaction,
+    ) -> Result<(Transaction, i64), Error> {
+        let result: TransactionDataEnvelope = self
+            .put(
+                &format!("plans/{}/transactions/{}", plan_id, tx_id),
+                PutTransactionWrapper { transaction },
+            )
+            .await?;
+        Ok((result.data.transaction, result.data.server_knowledge))
+    }
+
+    /// Creates a scheduled transaction.
+    pub async fn create_scheduled_transaction(
+        &self,
+        plan_id: PlanId,
+        scheduled_transaction: SaveScheduledTransaction,
+    ) -> Result<ScheduledTransaction, Error> {
+        let result: ScheduledTransactionDataEnvelope = self
+            .post(
+                &format!("plans/{}/scheduled_transactions", plan_id),
+                ScheduledTransactionWrapper {
+                    scheduled_transaction,
+                },
+            )
+            .await?;
+        Ok(result.data.scheduled_transaction)
+    }
+
+    /// Updates a scheduled transaction.
+    pub async fn update_scheduled_transaction(
+        &self,
+        plan_id: PlanId,
+        scheduled_transaction_id: Uuid,
+        scheduled_transaction: SaveScheduledTransaction,
+    ) -> Result<ScheduledTransaction, Error> {
+        let result: ScheduledTransactionDataEnvelope = self
+            .put(
+                &format!(
+                    "plans/{}/scheduled_transactions/{}",
+                    plan_id, scheduled_transaction_id
+                ),
+                ScheduledTransactionWrapper {
+                    scheduled_transaction,
+                },
+            )
+            .await?;
+        Ok(result.data.scheduled_transaction)
+    }
+
+    /// Deletes a scheduled transaction.
+    pub async fn delete_scheduled_transaction(
+        &self,
+        plan_id: PlanId,
+        scheduled_transaction_id: Uuid,
+    ) -> Result<ScheduledTransaction, Error> {
+        let result: ScheduledTransactionDataEnvelope = self
+            .delete(&format!(
+                "plans/{}/scheduled_transactions/{}",
+                plan_id, scheduled_transaction_id
+            ))
+            .await?;
+        Ok(result.data.scheduled_transaction)
+    }
+}
+
+/// Request body for creating or updating a scheduled transaction.
+#[derive(Debug, Serialize)]
+pub struct SaveScheduledTransaction {
+    pub account_id: Uuid,
+    pub date: NaiveDate,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payee_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flag_color: Option<FlagColor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frequency: Option<Frequency>,
+}
+
+#[derive(Debug, Serialize)]
+struct ScheduledTransactionWrapper {
+    scheduled_transaction: SaveScheduledTransaction,
 }

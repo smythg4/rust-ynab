@@ -25,6 +25,7 @@ struct PayeeDataEnvelope {
 #[derive(Debug, Deserialize, Serialize)]
 struct PayeeData {
     payee: Payee,
+    server_knowledge: i64,
 }
 
 /// A payee for a plan.
@@ -142,5 +143,62 @@ impl Client {
             )
             .await?;
         Ok(result.data.payee_location)
+    }
+}
+
+/// Request body for creating a new payee. Name is required and must not exceed 500
+/// characters.
+#[derive(Debug, Serialize)]
+pub struct PostPayee {
+    pub name: String,
+}
+#[derive(Debug, Serialize)]
+struct PostPayeeWrapper {
+    payee: PostPayee,
+}
+
+/// Request body for updating an existing payee. All fields are optional; omitted fields are
+/// not changed.
+#[derive(Debug, Serialize)]
+pub struct SavePayee {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+#[derive(Debug, Serialize)]
+struct PatchPayeeWrapper {
+    payee: SavePayee,
+}
+
+impl Client {
+    /// Creates a new payee. Returns the created payee and server knowledge for delta requests.
+    pub async fn create_payee(
+        &self,
+        plan_id: PlanId,
+        payee: PostPayee,
+    ) -> Result<(Payee, i64), Error> {
+        let result: PayeeDataEnvelope = self
+            .post(
+                &format!("plans/{}/payees", plan_id),
+                PostPayeeWrapper { payee },
+            )
+            .await?;
+        Ok((result.data.payee, result.data.server_knowledge))
+    }
+
+    /// Updates an existing payee. Returns the updated payee and server knowledge for delta
+    /// requests.
+    pub async fn update_payee(
+        &self,
+        plan_id: PlanId,
+        payee_id: Uuid,
+        payee: SavePayee,
+    ) -> Result<(Payee, i64), Error> {
+        let result: PayeeDataEnvelope = self
+            .patch(
+                &format!("plans/{}/payees/{}", plan_id, payee_id),
+                PatchPayeeWrapper { payee },
+            )
+            .await?;
+        Ok((result.data.payee, result.data.server_knowledge))
     }
 }
