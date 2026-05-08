@@ -45,7 +45,7 @@ struct PlanData {
     default_plan: Option<Plan>,
 }
 
-/// Plan represents a YNAB budget plan.
+/// Summary information for a plan.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Plan {
     pub id: Uuid,
@@ -86,8 +86,7 @@ struct PlanDetailsData {
     server_knowledge: i64,
 }
 
-// PlanDetails is the full plan export returned by GetPlan, including all
-// accounts, categories, transactions, and other sub-resources.
+/// A single plan with all related entities. This resource is effectively a full plan export.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlanDetails {
     #[serde(flatten)]

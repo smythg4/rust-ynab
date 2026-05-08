@@ -9,3 +9,6 @@ pub mod payee;
 pub mod plan;
 pub mod transaction;
 pub mod user;
+
+#[cfg(test)]
+pub mod testutil;

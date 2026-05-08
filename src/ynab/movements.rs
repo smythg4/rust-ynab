@@ -29,7 +29,7 @@ struct MoneyMovementGroupsData {
     server_knowledge: i64,
 }
 
-/// MoneyMovement represents a single movement of money between categories.
+/// A movement of money between categories. Amounts are in milliunits (divide by 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MoneyMovement {
     pub id: Uuid,
@@ -43,7 +43,7 @@ pub struct MoneyMovement {
     pub amount: i64,
 }
 
-/// MoneyMovementGroup represents a group of related money movements.
+/// A group of related money movements.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MoneyMovementGroup {
     pub id: Uuid,

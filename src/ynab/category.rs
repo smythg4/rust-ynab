@@ -29,7 +29,7 @@ struct CategoryData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct CategoryGroupDataEnvelope {
+struct SaveCategoryGroupDataEnvelope {
     data: CategoryGroupData,
 }
 
@@ -39,7 +39,7 @@ struct CategoryGroupData {
     server_knowledge: i64,
 }
 
-/// CategoryGroup represents a group of budget categories.
+/// A group of budget categories.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryGroup {
     pub id: Uuid,
@@ -50,8 +50,8 @@ pub struct CategoryGroup {
     pub categories: Vec<Category>,
 }
 
-/// Category represents a single budget category with goal and balance information.
-/// Amounts are in milliunits (divide by 1000 for display).
+/// A budget category. Amounts (assigned, activity, available, etc.) are specific to the current
+/// plan month (UTC) and are in milliunits (divide by 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Category {
     pub id: Uuid,
@@ -82,7 +82,7 @@ pub struct Category {
     pub deleted: bool,
 }
 
-/// GoalType represents the type of savings or spending goal assigned to a category.
+/// The type of savings or spending goal assigned to a category.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum GoalType {
     #[serde(rename = "TB")]
@@ -167,5 +167,157 @@ impl Client {
             .await?;
 
         Ok(result.data.category)
+    }
+}
+
+/// The category group to create or update.
+#[derive(Debug, Serialize)]
+pub struct SaveCategoryGroup {
+    pub name: String,
+}
+
+/// The category to create.
+#[derive(Debug, Serialize)]
+pub struct NewCategory {
+    pub name: String,
+    pub category_group_id: Uuid,
+    pub note: Option<String>,
+    pub goal_target: Option<i64>,
+    pub goal_target_date: Option<NaiveDate>,
+    pub goal_needs_whole_amount: Option<bool>,
+}
+
+/// The category to update. Only specified (non-`None`) fields will be changed.
+#[derive(Debug, Serialize)]
+pub struct SaveCategory {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_group_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goal_target: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goal_target_date: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goal_needs_whole_amount: Option<bool>,
+}
+
+/// The month category to update. Only `budgeted` (assigned) can be changed.
+#[derive(Debug, Serialize)]
+pub struct SaveMonthCategory {
+    budgeted: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct NewCategoryBody {
+    category: NewCategory,
+}
+
+#[derive(Debug, Serialize)]
+struct SaveCategoryBody {
+    category: SaveCategory,
+}
+
+#[derive(Debug, Serialize)]
+struct SaveMonthCategoryBody {
+    category: SaveMonthCategory,
+}
+
+#[derive(Debug, Serialize)]
+struct SaveCategoryGroupBody {
+    category_group: SaveCategoryGroup,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SaveCategoryDataEnvelope {
+    data: SaveCategoryData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SaveCategoryData {
+    category: Category,
+    server_knowledge: i64,
+}
+
+impl Client {
+    /// Creates a new category.
+    pub async fn create_category(
+        &self,
+        plan_id: PlanId,
+        category: NewCategory,
+    ) -> Result<(Category, i64), Error> {
+        let result: SaveCategoryDataEnvelope = self
+            .post(
+                &format!("plans/{plan_id}/categories"),
+                NewCategoryBody { category },
+            )
+            .await?;
+        Ok((result.data.category, result.data.server_knowledge))
+    }
+
+    /// Creates a new category group.
+    pub async fn create_category_group(
+        &self,
+        plan_id: PlanId,
+        category_group: SaveCategoryGroup,
+    ) -> Result<(CategoryGroup, i64), Error> {
+        let result: SaveCategoryGroupDataEnvelope = self
+            .post(
+                &format!("plans/{plan_id}/category_groups"),
+                SaveCategoryGroupBody { category_group },
+            )
+            .await?;
+        Ok((result.data.category_group, result.data.server_knowledge))
+    }
+
+    /// Update a category.
+    pub async fn update_category(
+        &self,
+        plan_id: PlanId,
+        category_id: Uuid,
+        category: SaveCategory,
+    ) -> Result<(Category, i64), Error> {
+        let result: SaveCategoryDataEnvelope = self
+            .patch(
+                &format!("plans/{plan_id}/categories/{category_id}"),
+                SaveCategoryBody { category },
+            )
+            .await?;
+        Ok((result.data.category, result.data.server_knowledge))
+    }
+
+    /// Update a category for a specific month. Only `budgeted` (assigned) amount can be updated.`
+    pub async fn update_category_for_month(
+        &self,
+        plan_id: PlanId,
+        month: NaiveDate,
+        category_id: Uuid,
+        category: SaveMonthCategory,
+    ) -> Result<(Category, i64), Error> {
+        let result: SaveCategoryDataEnvelope = self
+            .patch(
+                &format!("plans/{plan_id}/months/{month}/categories/{category_id}"),
+                SaveMonthCategoryBody { category },
+            )
+            .await?;
+        Ok((result.data.category, result.data.server_knowledge))
+    }
+
+    /// Update a category group.
+    pub async fn update_category_group(
+        &self,
+        plan_id: PlanId,
+        category_group_id: Uuid,
+        category_group: SaveCategoryGroup,
+    ) -> Result<(CategoryGroup, i64), Error> {
+        let result: SaveCategoryGroupDataEnvelope = self
+            .patch(
+                &format!("plans/{plan_id}/category_groups/{category_group_id}"),
+                SaveCategoryGroupBody { category_group },
+            )
+            .await?;
+        Ok((result.data.category_group, result.data.server_knowledge))
     }
 }

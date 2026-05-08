@@ -27,7 +27,7 @@ struct PayeeData {
     payee: Payee,
 }
 
-/// Payee represents a payee that can be associated with transactions.
+/// A payee for a plan.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Payee {
     pub id: Uuid,
@@ -56,7 +56,8 @@ struct PayeeLocationsData {
     payee_locations: Vec<PayeeLocation>,
 }
 
-/// PayeeLocation represents a geographic location associated with a payee.
+/// A GPS location stored when a transaction is entered on a mobile device. Locations will not be
+/// available for all payees.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PayeeLocation {
     pub id: Uuid,

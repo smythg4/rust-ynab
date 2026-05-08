@@ -28,7 +28,9 @@ struct MonthsData {
     server_knowledge: i64,
 }
 
-/// Month represents a budget month, including all category allocations and activity.
+/// A plan month. This is where Ready to Assign, Age of Money, and category amounts
+/// (assigned, activity, available) are available. Amounts are in milliunits (divide by 1000 for
+/// display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Month {
     pub month: NaiveDate,
@@ -89,16 +91,16 @@ impl Client {
     }
 }
 
-  #[cfg(test)]
-  mod tests {
-      use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-      #[test]
-      fn deserializes_without_optional_fields() {
-          let json = r#"{ "month": "2024-01-01", "note": null, "income": 0,
+    #[test]
+    fn deserializes_without_optional_fields() {
+        let json = r#"{ "month": "2024-01-01", "note": null, "income": 0,
               "budgeted": 0, "activity": 0, "to_be_budgeted": 0,
               "age_of_money": null, "deleted": false }"#;
-          let month: Month = serde_json::from_str(json).unwrap();
-          assert!(month.categories.is_empty());
-      }
-  }
+        let month: Month = serde_json::from_str(json).unwrap();
+        assert!(month.categories.is_empty());
+    }
+}

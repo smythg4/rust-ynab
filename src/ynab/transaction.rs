@@ -53,7 +53,7 @@ struct ScheduledTransactionsData {
 
 // --- Enums ---
 
-/// ClearedStatus represents the cleared state of a transaction.
+/// The cleared status of a transaction.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClearedStatus {
@@ -62,7 +62,7 @@ pub enum ClearedStatus {
     Reconciled,
 }
 
-/// FlagColor represents the color of a transaction flag.
+/// The color of a transaction flag.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FlagColor {
@@ -74,7 +74,7 @@ pub enum FlagColor {
     Purple,
 }
 
-/// Frequency represents the recurrence interval for a scheduled transaction.
+/// The recurrence frequency of a scheduled transaction.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Frequency {
     #[serde(rename = "never")]
@@ -105,7 +105,8 @@ pub enum Frequency {
     EveryOtherYear,
 }
 
-/// Transaction represents a single YNAB transaction. Amounts are in milliunits (divide by 1000 for display).
+/// A plan transaction, excluding any pending transactions. Amounts are in milliunits (divide by
+/// 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
     pub id: String,
@@ -127,7 +128,7 @@ pub struct Transaction {
     pub subtransactions: Vec<Subtransaction>,
 }
 
-/// Subtransaction is a line item within a split transaction.
+/// A line item within a split transaction. Amounts are in milliunits (divide by 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Subtransaction {
     pub id: String,
@@ -142,7 +143,7 @@ pub struct Subtransaction {
     pub transfer_transaction_id: Option<String>,
 }
 
-/// ScheduledTransaction represents a recurring scheduled transaction.
+/// A scheduled transaction. Amounts are in milliunits (divide by 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScheduledTransaction {
     pub id: Uuid,
@@ -163,7 +164,8 @@ pub struct ScheduledTransaction {
     pub transfer_account_id: Option<Uuid>,
 }
 
-/// ScheduledSubtransaction is a line item within a split scheduled transaction.
+/// A line item within a split scheduled transaction. Amounts are in milliunits (divide by 1000 for
+/// display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScheduledSubtransaction {
     pub id: Uuid,
