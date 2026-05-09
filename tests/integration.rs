@@ -123,14 +123,9 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
         sk,
         delta_sk
     );
-    let delta_ids: std::collections::HashSet<Uuid> =
-        delta.iter().map(|tx| tx.id).collect();
+    let delta_ids: std::collections::HashSet<Uuid> = delta.iter().map(|tx| tx.id).collect();
     for id in &created.transaction_ids {
-        assert!(
-            delta_ids.contains(id),
-            "created ID {} not in delta",
-            id
-        );
+        assert!(delta_ids.contains(id), "created ID {} not in delta", id);
     }
 
     for tx_id in &created.transaction_ids {

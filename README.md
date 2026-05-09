@@ -123,7 +123,8 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 | Method | Endpoint |
 |--------|----------|
 | `get_plans` | `GET /plans` |
-| `get_plan` | `GET /plans/{plan_id}` |
+| `get_plan` † | `GET /plans/{plan_id}` |
+| `get_plan` with `PlanId::LastUsed` | `GET /plans/last-used` |
 | `get_plan_settings` | `GET /plans/{plan_id}/settings` |
 
 ### Accounts
@@ -166,7 +167,7 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 | Method | Endpoint |
 |--------|----------|
 | `get_transactions` † | `GET /plans/{plan_id}/transactions` |
-| `get_transaction` | `GET /plans/{plan_id}/transactions/{transaction_id}` |
+| `get_transaction` † | `GET /plans/{plan_id}/transactions/{transaction_id}` |
 | `get_transactions_by_account` † | `GET /plans/{plan_id}/accounts/{account_id}/transactions` |
 | `get_transactions_by_category` † | `GET /plans/{plan_id}/categories/{category_id}/transactions` |
 | `get_transactions_by_payee` † | `GET /plans/{plan_id}/payees/{payee_id}/transactions` |
@@ -175,7 +176,7 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 | `create_transactions` | `POST /plans/{plan_id}/transactions` |
 | `update_transaction` | `PUT /plans/{plan_id}/transactions/{transaction_id}` |
 | `update_transactions` | `PATCH /plans/{plan_id}/transactions` |
-| `delete_transaction` | `DELETE /plans/{plan_id}/transactions/{transaction_id}` |
+| `delete_transaction` † | `DELETE /plans/{plan_id}/transactions/{transaction_id}` |
 | `import_transactions` | `POST /plans/{plan_id}/transactions/import` |
 
 ### Scheduled Transactions
@@ -202,9 +203,9 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 
 † Returns server knowledge as a second return value for use with delta requests.
 
-## Testing
+## Test Coverage
 
-Unit tests use [wiremock](https://github.com/LukeMathWalker/wiremock-rs) to cover request serialization, response deserialization, and error type dispatch without hitting the live API:
+Unit tests use [wiremock](https://github.com/LukeMathWalker/wiremock-rs) to cover all endpoints (GET, POST, PATCH, PUT, DELETE), client configuration, error type dispatch, and auth header injection. Write operation tests verify the HTTP method and request body serialization.
 
 ```
 cargo test
@@ -215,8 +216,6 @@ Integration tests exercise the live API against a real plan and require `YNAB_TO
 ```
 YNAB_TOKEN=... YNAB_TEST_PLAN_ID=... cargo test --features integration
 ```
-
-> Unit test coverage is currently complete for `account`, `category`, `month`, `errors`, and `user`. Tests for `plan`, `transaction`, `payee`, `movements`, and `client` are in progress. Integration tests are not yet implemented.
 
 ## License
 
