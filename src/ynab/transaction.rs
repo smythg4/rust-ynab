@@ -125,7 +125,7 @@ pub enum Frequency {
 /// 1000 for display).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
-    pub id: String,
+    pub id: Uuid,
     pub date: NaiveDate,
     pub amount: i64,
     pub memo: Option<String>,
@@ -140,6 +140,10 @@ pub struct Transaction {
     pub category_id: Option<Uuid>,
     pub category_name: Option<String>,
     pub matched_transaction_id: Option<String>,
+    pub import_id: Option<String>,
+    pub import_payee_name: Option<String>,
+    pub import_payee_name_original: Option<String>,
+    pub deleted: bool,
     #[serde(default)]
     pub subtransactions: Vec<Subtransaction>,
 }
@@ -298,15 +302,15 @@ impl Client {
     pub async fn get_transaction(
         &self,
         plan_id: PlanId,
-        transaction_id: &str,
-    ) -> Result<Transaction, Error> {
+        transaction_id: &Uuid,
+    ) -> Result<(Transaction, i64), Error> {
         let result: TransactionDataEnvelope = self
             .get(
                 &format!("plans/{}/transactions/{}", plan_id, transaction_id),
                 NO_PARAMS,
             )
             .await?;
-        Ok(result.data.transaction)
+        Ok((result.data.transaction, result.data.server_knowledge))
     }
 
     /// Returns all transactions for a specified account, excluding any pending transactions.
@@ -497,10 +501,8 @@ pub struct SaveSubTransaction {
 /// Request body for creating a new transaction.
 #[derive(Debug, Serialize)]
 pub struct NewTransaction {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub account_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub date: Option<NaiveDate>,
+    pub account_id: Uuid,
+    pub date: NaiveDate,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amount: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -555,9 +557,9 @@ pub struct ExistingTransaction {
 #[derive(Debug, Serialize)]
 pub struct SaveTransactionWithIdOrImportId {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    pub id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub import_id: Option<String>,
+    pub import_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -744,4 +746,500 @@ pub struct SaveScheduledTransaction {
 #[derive(Debug, Serialize)]
 struct ScheduledTransactionWrapper {
     scheduled_transaction: SaveScheduledTransaction,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ynab::testutil::{
+        TEST_ID_1, TEST_ID_3, TEST_ID_4, error_body, new_test_client,
+        scheduled_transaction_fixture, transaction_fixture,
+    };
+    use serde_json::json;
+    use uuid::uuid;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    fn transactions_list_fixture() -> serde_json::Value {
+        json!({ "data": { "transactions": [transaction_fixture()], "server_knowledge": 10 } })
+    }
+
+    fn transaction_single_fixture() -> serde_json::Value {
+        json!({ "data": { "transaction": transaction_fixture(), "server_knowledge": 10 } })
+    }
+
+    fn save_transactions_fixture() -> serde_json::Value {
+        json!({
+            "data": {
+                "transaction_ids": ["transaction-1"],
+                "transaction": transaction_fixture(),
+                "transactions": [transaction_fixture()],
+                "duplicate_import_ids": null,
+                "server_knowledge": 10
+            }
+        })
+    }
+
+    fn scheduled_transactions_list_fixture() -> serde_json::Value {
+        json!({
+            "data": {
+                "scheduled_transactions": [scheduled_transaction_fixture()],
+                "server_knowledge": 10
+            }
+        })
+    }
+
+    fn scheduled_transaction_single_fixture() -> serde_json::Value {
+        json!({ "data": { "scheduled_transaction": scheduled_transaction_fixture() } })
+    }
+
+    fn import_transactions_fixture() -> serde_json::Value {
+        json!({ "data": { "transaction_ids": [TEST_ID_1] } })
+    }
+
+    #[tokio::test]
+    async fn get_transactions_returns_transactions() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/transactions", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (txs, sk) = client
+            .get_transactions(PlanId::Id(uuid!(TEST_ID_1)))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(txs.len(), 1);
+        assert_eq!(txs[0].id.to_string(), TEST_ID_1);
+        assert_eq!(txs[0].amount, -50000);
+        assert_eq!(sk, 10);
+    }
+
+    #[tokio::test]
+    async fn get_transaction_returns_transaction() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/transactions/{}",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transaction_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (tx, sk) = client
+            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), &uuid!(TEST_ID_1))
+            .await
+            .unwrap();
+        assert_eq!(tx.id.to_string(), TEST_ID_1);
+        assert_eq!(tx.amount, -50000);
+        assert_eq!(sk, 10);
+    }
+
+    #[tokio::test]
+    async fn get_transactions_by_account_returns_transactions() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/accounts/{}/transactions",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (txs, _) = client
+            .get_transactions_by_account(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_1))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(txs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn get_transactions_by_category_returns_transactions() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/categories/{}/transactions",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (txs, _) = client
+            .get_transactions_by_category(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_1))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(txs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn get_transactions_by_payee_returns_transactions() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/payees/{}/transactions",
+                TEST_ID_1, TEST_ID_3
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (txs, _) = client
+            .get_transactions_by_payee(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_3))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(txs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn get_transactions_by_month_returns_transactions() {
+        let (client, server) = new_test_client().await;
+        let month = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/months/{}/transactions",
+                TEST_ID_1, month
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (txs, _) = client
+            .get_transactions_by_month(PlanId::Id(uuid!(TEST_ID_1)), month)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(txs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn create_transaction_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/transactions", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(201).set_body_json(save_transactions_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let resp = client
+            .create_transaction(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                NewTransaction {
+                    account_id: uuid!(TEST_ID_1),
+                    date: NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+                    amount: Some(-50000),
+                    memo: None,
+                    cleared: Some(ClearedStatus::Cleared),
+                    approved: Some(true),
+                    payee_id: None,
+                    payee_name: None,
+                    category_id: None,
+                    flag_color: None,
+                    import_id: None,
+                    subtransactions: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.transaction_ids, vec!["transaction-1"]);
+        assert_eq!(resp.transaction.unwrap().amount, -50000);
+    }
+
+    #[tokio::test]
+    async fn create_transactions_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/transactions", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(201).set_body_json(save_transactions_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let resp = client
+            .create_transactions(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                vec![NewTransaction {
+                    account_id: uuid!(TEST_ID_1),
+                    date: NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+                    amount: Some(-50000),
+                    memo: None,
+                    cleared: Some(ClearedStatus::Cleared),
+                    approved: Some(true),
+                    payee_id: None,
+                    payee_name: None,
+                    category_id: None,
+                    flag_color: None,
+                    import_id: None,
+                    subtransactions: None,
+                }],
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.transaction_ids, vec!["transaction-1"]);
+    }
+
+    #[tokio::test]
+    async fn update_transaction_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("PUT"))
+            .and(path(format!(
+                "/plans/{}/transactions/{}",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transaction_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (tx, sk) = client
+            .update_transaction(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                uuid!(TEST_ID_1),
+                ExistingTransaction {
+                    amount: Some(-50000),
+                    account_id: None,
+                    date: None,
+                    payee_id: None,
+                    payee_name: None,
+                    category_id: None,
+                    memo: None,
+                    cleared: None,
+                    approved: None,
+                    flag_color: None,
+                    subtransactions: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(tx.id.to_string(), TEST_ID_1);
+        assert_eq!(sk, 10);
+    }
+
+    #[tokio::test]
+    async fn update_transactions_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("PATCH"))
+            .and(path(format!("/plans/{}/transactions", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(save_transactions_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let resp = client
+            .update_transactions(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                vec![SaveTransactionWithIdOrImportId {
+                    id: Some(Uuid::from_bytes([0; 16])),
+                    memo: Some("updated".to_string()),
+                    import_id: None,
+                    account_id: None,
+                    date: None,
+                    amount: None,
+                    payee_id: None,
+                    payee_name: None,
+                    category_id: None,
+                    cleared: None,
+                    approved: None,
+                    flag_color: None,
+                    subtransactions: None,
+                }],
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.transaction_ids, vec!["transaction-1"]);
+    }
+
+    #[tokio::test]
+    async fn delete_transaction_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("DELETE"))
+            .and(path(format!(
+                "/plans/{}/transactions/{}",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transaction_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (tx, sk) = client
+            .delete_transaction(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_1))
+            .await
+            .unwrap();
+        assert_eq!(tx.id.to_string(), TEST_ID_1);
+        assert_eq!(sk, 10);
+    }
+
+    #[tokio::test]
+    async fn import_transactions_returns_ids() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/transactions/import", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(import_transactions_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let ids = client
+            .import_transactions(PlanId::Id(uuid!(TEST_ID_1)))
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), 1);
+        assert_eq!(ids[0].to_string(), TEST_ID_1);
+    }
+
+    #[tokio::test]
+    async fn get_scheduled_transactions_returns_transactions() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/scheduled_transactions", TEST_ID_1)))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(scheduled_transactions_list_fixture()),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (txs, sk) = client
+            .get_scheduled_transactions(PlanId::Id(uuid!(TEST_ID_1)))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(txs.len(), 1);
+        assert_eq!(txs[0].id.to_string(), TEST_ID_4);
+        assert_eq!(sk, 10);
+    }
+
+    #[tokio::test]
+    async fn get_scheduled_transaction_returns_transaction() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/scheduled_transactions/{}",
+                TEST_ID_1, TEST_ID_4
+            )))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(scheduled_transaction_single_fixture()),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let tx = client
+            .get_scheduled_transaction(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_4))
+            .await
+            .unwrap();
+        assert_eq!(tx.id.to_string(), TEST_ID_4);
+        assert!(matches!(tx.frequency, Frequency::Monthly));
+    }
+
+    #[tokio::test]
+    async fn create_scheduled_transaction_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/scheduled_transactions", TEST_ID_1)))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(scheduled_transaction_single_fixture()),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let tx = client
+            .create_scheduled_transaction(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                SaveScheduledTransaction {
+                    account_id: uuid!(TEST_ID_1),
+                    date: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                    amount: Some(-50000),
+                    frequency: Some(Frequency::Monthly),
+                    memo: None,
+                    payee_id: None,
+                    payee_name: None,
+                    category_id: None,
+                    flag_color: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(tx.id.to_string(), TEST_ID_4);
+        assert_eq!(tx.amount, -50000);
+    }
+
+    #[tokio::test]
+    async fn update_scheduled_transaction_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("PUT"))
+            .and(path(format!(
+                "/plans/{}/scheduled_transactions/{}",
+                TEST_ID_1, TEST_ID_4
+            )))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(scheduled_transaction_single_fixture()),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let tx = client
+            .update_scheduled_transaction(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                uuid!(TEST_ID_4),
+                SaveScheduledTransaction {
+                    account_id: uuid!(TEST_ID_1),
+                    date: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                    amount: Some(-50000),
+                    frequency: Some(Frequency::Monthly),
+                    memo: None,
+                    payee_id: None,
+                    payee_name: None,
+                    category_id: None,
+                    flag_color: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(tx.id.to_string(), TEST_ID_4);
+    }
+
+    #[tokio::test]
+    async fn delete_scheduled_transaction_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("DELETE"))
+            .and(path(format!(
+                "/plans/{}/scheduled_transactions/{}",
+                TEST_ID_1, TEST_ID_4
+            )))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(scheduled_transaction_single_fixture()),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let tx = client
+            .delete_scheduled_transaction(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_4))
+            .await
+            .unwrap();
+        assert_eq!(tx.id.to_string(), TEST_ID_4);
+    }
+
+    #[tokio::test]
+    async fn get_transaction_returns_not_found() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/transactions/{}",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(404).set_body_json(error_body(
+                "404",
+                "not_found",
+                "Transaction not found",
+            )))
+            .mount(&server)
+            .await;
+        let err = client
+            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), &uuid!(TEST_ID_1))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::NotFound(_)));
+    }
 }

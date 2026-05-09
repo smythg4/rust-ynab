@@ -1,29 +1,46 @@
 use crate::ynab::errors::{Error, ErrorResponse};
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
+use std::fmt;
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Client is the YNAB API client. Use Client::new() to create one.
-#[derive(Debug)]
 pub struct Client {
     base_url: reqwest::Url,
     http_client: reqwest::Client,
     limiter: Option<Arc<DefaultDirectRateLimiter>>,
+    api_key: String,
+    timeout: Option<Duration>,
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Client")
+            .field("base_url", &self.base_url)
+            .field("api_key", &"[redacted]")
+            .finish()
+    }
 }
 
 impl Client {
     /// Creates a new Client with the given Personal Access Token.
     pub fn new(api_key: impl Into<String>) -> Result<Self, Error> {
         let api_key = api_key.into();
-        let http_client = Self::build_http_client(&api_key)?;
+        let http_client = Self::build_http_client(&api_key, None)?;
         Ok(Self {
             base_url: reqwest::Url::parse("https://api.ynab.com/v1").unwrap(),
             http_client,
             limiter: None,
+            api_key,
+            timeout: None,
         })
     }
 
-    fn build_http_client(api_key: &str) -> Result<reqwest::Client, Error> {
+    fn build_http_client(
+        api_key: &str,
+        timeout: Option<Duration>,
+    ) -> Result<reqwest::Client, Error> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::AUTHORIZATION,
@@ -31,10 +48,18 @@ impl Client {
                 .parse()
                 .expect("api key must be valid ASCII"),
         );
-        reqwest::Client::builder()
-            .default_headers(headers)
-            .build()
-            .map_err(Into::into)
+        let mut builder = reqwest::Client::builder().default_headers(headers);
+        if let Some(t) = timeout {
+            builder = builder.timeout(t);
+        }
+        builder.build().map_err(Into::into)
+    }
+
+    /// Sets the request timeout. Rebuilds the underlying HTTP client.
+    pub fn with_timeout(mut self, timeout: Duration) -> Result<Self, Error> {
+        self.http_client = Self::build_http_client(&self.api_key, Some(timeout))?;
+        self.timeout = Some(timeout);
+        Ok(self)
     }
 
     /// Overrides the base URL. Primarily useful for testing.

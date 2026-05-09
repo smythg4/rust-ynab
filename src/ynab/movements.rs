@@ -168,3 +168,126 @@ impl Client {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ynab::testutil::{TEST_ID_1, TEST_ID_2, new_test_client};
+    use serde_json::json;
+    use uuid::uuid;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    fn movement_fixture() -> serde_json::Value {
+        json!({
+            "id": TEST_ID_1,
+            "month": "2024-01-01",
+            "moved_at": null,
+            "note": null,
+            "money_movement_group_id": null,
+            "performed_by_user_id": null,
+            "from_category_id": TEST_ID_2,
+            "to_category_id": TEST_ID_1,
+            "amount": 10000
+        })
+    }
+
+    fn movement_group_fixture() -> serde_json::Value {
+        json!({
+            "id": TEST_ID_1,
+            "group_created_at": "2024-01-01T00:00:00Z",
+            "month": "2024-01-01",
+            "note": null,
+            "performed_by_user_id": null
+        })
+    }
+
+    fn movements_list_fixture() -> serde_json::Value {
+        json!({ "data": { "money_movements": [movement_fixture()], "server_knowledge": 4 } })
+    }
+
+    fn movement_groups_list_fixture() -> serde_json::Value {
+        json!({ "data": { "money_movement_groups": [movement_group_fixture()], "server_knowledge": 4 } })
+    }
+
+    #[tokio::test]
+    async fn get_money_movements_returns_movements() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/money_movements", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(movements_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (movements, sk) = client
+            .get_money_movements(PlanId::Id(uuid!(TEST_ID_1)))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(movements.len(), 1);
+        assert_eq!(movements[0].id.to_string(), TEST_ID_1);
+        assert_eq!(movements[0].amount, 10000);
+        assert_eq!(sk, 4);
+    }
+
+    #[tokio::test]
+    async fn get_money_movements_by_month_returns_movements() {
+        let (client, server) = new_test_client().await;
+        let month = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/months/{}/money_movements",
+                TEST_ID_1, month
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(movements_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (movements, sk) = client
+            .get_money_movements_by_month(PlanId::Id(uuid!(TEST_ID_1)), month)
+            .await
+            .unwrap();
+        assert_eq!(movements.len(), 1);
+        assert_eq!(sk, 4);
+    }
+
+    #[tokio::test]
+    async fn get_money_movement_groups_returns_groups() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/money_movement_groups", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(movement_groups_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (groups, sk) = client
+            .get_money_movement_groups(PlanId::Id(uuid!(TEST_ID_1)))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].id.to_string(), TEST_ID_1);
+        assert_eq!(sk, 4);
+    }
+
+    #[tokio::test]
+    async fn get_money_movement_groups_by_month_returns_groups() {
+        let (client, server) = new_test_client().await;
+        let month = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/months/{}/money_movement_groups",
+                TEST_ID_1, month
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(movement_groups_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (groups, sk) = client
+            .get_money_movement_groups_by_month(PlanId::Id(uuid!(TEST_ID_1)), month)
+            .await
+            .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(sk, 4);
+    }
+}

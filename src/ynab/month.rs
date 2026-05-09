@@ -94,6 +94,56 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ynab::testutil::{TEST_ID_1, month_fixture, new_test_client};
+    use serde_json::json;
+    use uuid::uuid;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    fn months_list_fixture() -> serde_json::Value {
+        json!({ "data": { "months": [month_fixture()], "server_knowledge": 6 } })
+    }
+
+    fn month_single_fixture() -> serde_json::Value {
+        json!({ "data": { "month": month_fixture() } })
+    }
+
+    #[tokio::test]
+    async fn get_months_returns_months() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/months", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(months_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (months, sk) = client
+            .get_months(PlanId::Id(uuid!(TEST_ID_1)))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(months.len(), 1);
+        assert_eq!(months[0].income, 500000);
+        assert_eq!(sk, 6);
+    }
+
+    #[tokio::test]
+    async fn get_month_returns_month() {
+        let (client, server) = new_test_client().await;
+        let month = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/months/{}", TEST_ID_1, month)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(month_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let m = client
+            .get_month(PlanId::Id(uuid!(TEST_ID_1)), month)
+            .await
+            .unwrap();
+        assert_eq!(m.income, 500000);
+        assert_eq!(m.categories.len(), 1);
+    }
 
     #[test]
     fn deserializes_without_optional_fields() {

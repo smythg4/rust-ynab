@@ -7,7 +7,7 @@ pub struct DateFormat {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CurrencyFormat {
-    iso_code: String,
+    pub iso_code: String,
     example_format: String,
     decimal_digits: usize,
     decimal_separator: char,

@@ -202,3 +202,188 @@ impl Client {
         Ok((result.data.payee, result.data.server_knowledge))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ynab::testutil::{
+        TEST_ID_1, TEST_ID_3, TEST_ID_4, error_body, new_test_client, payee_fixture,
+        payee_location_fixture,
+    };
+    use serde_json::json;
+    use uuid::uuid;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    fn payees_list_fixture() -> serde_json::Value {
+        json!({ "data": { "payees": [payee_fixture()], "server_knowledge": 3 } })
+    }
+
+    fn payee_single_fixture() -> serde_json::Value {
+        json!({ "data": { "payee": payee_fixture(), "server_knowledge": 3 } })
+    }
+
+    fn payee_locations_list_fixture() -> serde_json::Value {
+        json!({ "data": { "payee_locations": [payee_location_fixture()] } })
+    }
+
+    fn payee_location_single_fixture() -> serde_json::Value {
+        json!({ "data": { "payee_location": payee_location_fixture() } })
+    }
+
+    #[tokio::test]
+    async fn get_payees_returns_payees() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/payees", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payees_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (payees, sk) = client
+            .get_payees(PlanId::Id(uuid!(TEST_ID_1)))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(payees.len(), 1);
+        assert_eq!(payees[0].id.to_string(), TEST_ID_3);
+        assert_eq!(sk, 3);
+    }
+
+    #[tokio::test]
+    async fn get_payee_returns_payee() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/payees/{}", TEST_ID_1, TEST_ID_3)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payee_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let payee = client
+            .get_payee(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_3))
+            .await
+            .unwrap();
+        assert_eq!(payee.id.to_string(), TEST_ID_3);
+        assert_eq!(payee.name, "Amazon");
+    }
+
+    #[tokio::test]
+    async fn get_payee_locations_returns_locations() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/payee_locations", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payee_locations_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let locations = client
+            .get_payee_locations(PlanId::Id(uuid!(TEST_ID_1)))
+            .await
+            .unwrap();
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].id.to_string(), TEST_ID_4);
+    }
+
+    #[tokio::test]
+    async fn get_payee_locations_by_payee_returns_locations() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/payees/{}/payee_locations",
+                TEST_ID_1, TEST_ID_3
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payee_locations_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let locations = client
+            .get_payee_locations_by_payee(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_3))
+            .await
+            .unwrap();
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].payee_id.to_string(), TEST_ID_3);
+    }
+
+    #[tokio::test]
+    async fn get_payee_location_returns_location() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/payee_locations/{}",
+                TEST_ID_1, TEST_ID_4
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payee_location_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let location = client
+            .get_payee_location(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_4))
+            .await
+            .unwrap();
+        assert_eq!(location.id.to_string(), TEST_ID_4);
+        assert_eq!(location.latitude, "37.7749");
+    }
+
+    #[tokio::test]
+    async fn create_payee_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/payees", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(201).set_body_json(payee_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (payee, sk) = client
+            .create_payee(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                PostPayee {
+                    name: "Amazon".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(payee.id.to_string(), TEST_ID_3);
+        assert_eq!(sk, 3);
+    }
+
+    #[tokio::test]
+    async fn update_payee_succeeds() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("PATCH"))
+            .and(path(format!("/plans/{}/payees/{}", TEST_ID_1, TEST_ID_3)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payee_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (payee, _) = client
+            .update_payee(
+                PlanId::Id(uuid!(TEST_ID_1)),
+                uuid!(TEST_ID_3),
+                SavePayee {
+                    name: Some("Amazon Updated".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(payee.id.to_string(), TEST_ID_3);
+    }
+
+    #[tokio::test]
+    async fn get_payee_returns_not_found() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/payees/{}", TEST_ID_1, TEST_ID_3)))
+            .respond_with(ResponseTemplate::new(404).set_body_json(error_body(
+                "404",
+                "not_found",
+                "Payee not found",
+            )))
+            .mount(&server)
+            .await;
+        let err = client
+            .get_payee(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_3))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::NotFound(_)));
+    }
+}

@@ -1,3 +1,4 @@
+pub mod display;
 pub mod ynab;
 
 pub use ynab::account::Account;
@@ -14,3 +15,8 @@ pub use ynab::transaction::{
     Subtransaction, Transaction, TransactionType,
 };
 pub use ynab::user::User;
+
+/// Converts a YNAB milliunit amount to a dollar amount.
+pub fn milliunits_to_amount(milliunits: i64) -> f64 {
+    milliunits as f64 / 1000.0
+}

@@ -156,8 +156,8 @@ impl Client {
     pub async fn get_category_for_month(
         &self,
         plan_id: PlanId,
-        cat_id: Uuid,
         month: NaiveDate,
+        cat_id: Uuid,
     ) -> Result<Category, Error> {
         let result: CategoryDataEnvelope = self
             .get(
@@ -207,7 +207,7 @@ pub struct SaveCategory {
 /// The month category to update. Only `budgeted` (assigned) can be changed.
 #[derive(Debug, Serialize)]
 pub struct SaveMonthCategory {
-    budgeted: i64,
+    pub budgeted: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -319,5 +319,245 @@ impl Client {
             )
             .await?;
         Ok((result.data.category_group, result.data.server_knowledge))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ynab::testutil::{
+        TEST_ID_1, TEST_ID_2, category_fixture, category_group_fixture, error_body, new_test_client,
+    };
+    use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    #[tokio::test]
+    async fn create_category_succeeds() {
+        let (client, server) = new_test_client().await;
+
+        let fixture = category_fixture();
+        let envelope = json!({
+            "data": {
+                "category": fixture,
+                "server_knowledge": 1
+            }
+        });
+
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/categories", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(201).set_body_json(envelope))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let category = NewCategory {
+            name: fixture["name"].as_str().unwrap().to_string(),
+            category_group_id: TEST_ID_2.parse().unwrap(),
+            note: None,
+            goal_target: None,
+            goal_target_date: None,
+            goal_needs_whole_amount: None,
+        };
+
+        let (response, sk) = client
+            .create_category(PlanId::Id(TEST_ID_1.parse().unwrap()), category)
+            .await
+            .unwrap();
+
+        assert_eq!(response.id.to_string(), TEST_ID_1);
+        assert_eq!(response.name, fixture["name"].as_str().unwrap());
+        assert_eq!(response.balance, fixture["balance"].as_i64().unwrap());
+        assert_eq!(sk, 1);
+    }
+
+    #[tokio::test]
+    async fn create_category_returns_internal_server_error() {
+        let (client, server) = new_test_client().await;
+
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/categories", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(500).set_body_json(error_body(
+                "500",
+                "internal_server_error",
+                "An internal error occurred",
+            )))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let category = NewCategory {
+            name: "Groceries".to_string(),
+            category_group_id: TEST_ID_2.parse().unwrap(),
+            note: None,
+            goal_target: None,
+            goal_target_date: None,
+            goal_needs_whole_amount: None,
+        };
+
+        let result = client
+            .create_category(PlanId::Id(TEST_ID_1.parse().unwrap()), category)
+            .await;
+
+        assert!(matches!(result, Err(Error::InternalServerError(_))));
+    }
+
+    #[tokio::test]
+    async fn get_categories_returns_category_groups() {
+        let (client, server) = new_test_client().await;
+        let fixture = json!({
+            "data": { "category_groups": [category_group_fixture()], "server_knowledge": 2 }
+        });
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/categories", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(fixture))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (groups, sk) = client
+            .get_categories(PlanId::Id(TEST_ID_1.parse().unwrap()))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].id.to_string(), TEST_ID_2);
+        assert_eq!(groups[0].categories.len(), 1);
+        assert_eq!(sk, 2);
+    }
+
+    #[tokio::test]
+    async fn get_category_returns_category() {
+        let (client, server) = new_test_client().await;
+        let fixture = category_fixture();
+        let envelope = json!({ "data": { "category": fixture } });
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/categories/{}",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(envelope))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let category = client
+            .get_category(
+                PlanId::Id(TEST_ID_1.parse().unwrap()),
+                TEST_ID_1.parse().unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(category.id.to_string(), TEST_ID_1);
+        assert_eq!(category.name, "Groceries");
+    }
+
+    #[tokio::test]
+    async fn get_category_for_month_returns_category() {
+        let (client, server) = new_test_client().await;
+        let month = chrono::NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        let fixture = category_fixture();
+        let envelope = json!({ "data": { "category": fixture } });
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/plans/{}/months/{}/categories/{}",
+                TEST_ID_1, month, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(envelope))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let category = client
+            .get_category_for_month(
+                PlanId::Id(TEST_ID_1.parse().unwrap()),
+                month,
+                TEST_ID_1.parse().unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(category.id.to_string(), TEST_ID_1);
+    }
+
+    #[tokio::test]
+    async fn create_category_group_succeeds() {
+        let (client, server) = new_test_client().await;
+        let fixture = category_group_fixture();
+        let envelope = json!({ "data": { "category_group": fixture, "server_knowledge": 2 } });
+        Mock::given(method("POST"))
+            .and(path(format!("/plans/{}/category_groups", TEST_ID_1)))
+            .respond_with(ResponseTemplate::new(201).set_body_json(envelope))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (group, sk) = client
+            .create_category_group(
+                PlanId::Id(TEST_ID_1.parse().unwrap()),
+                SaveCategoryGroup {
+                    name: "Everyday Expenses".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(group.id.to_string(), TEST_ID_2);
+        assert_eq!(sk, 2);
+    }
+
+    #[tokio::test]
+    async fn update_category_succeeds() {
+        let (client, server) = new_test_client().await;
+        let fixture = category_fixture();
+        let envelope = json!({ "data": { "category": fixture, "server_knowledge": 4 } });
+        Mock::given(method("PATCH"))
+            .and(path(format!(
+                "/plans/{}/categories/{}",
+                TEST_ID_1, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(envelope))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (category, sk) = client
+            .update_category(
+                PlanId::Id(TEST_ID_1.parse().unwrap()),
+                TEST_ID_1.parse().unwrap(),
+                SaveCategory {
+                    name: Some("Groceries".to_string()),
+                    category_group_id: None,
+                    note: None,
+                    goal_target: None,
+                    goal_target_date: None,
+                    goal_needs_whole_amount: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(category.id.to_string(), TEST_ID_1);
+        assert_eq!(sk, 4);
+    }
+
+    #[tokio::test]
+    async fn update_category_group_succeeds() {
+        let (client, server) = new_test_client().await;
+        let fixture = category_group_fixture();
+        let envelope = json!({ "data": { "category_group": fixture, "server_knowledge": 4 } });
+        Mock::given(method("PATCH"))
+            .and(path(format!(
+                "/plans/{}/category_groups/{}",
+                TEST_ID_1, TEST_ID_2
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(envelope))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (group, sk) = client
+            .update_category_group(
+                PlanId::Id(TEST_ID_1.parse().unwrap()),
+                TEST_ID_2.parse().unwrap(),
+                SaveCategoryGroup {
+                    name: "Everyday Expenses".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(group.id.to_string(), TEST_ID_2);
+        assert_eq!(sk, 4);
     }
 }

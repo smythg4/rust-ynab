@@ -12,7 +12,7 @@ use crate::{CurrencyFormat, DateFormat};
 use crate::{Payee, PayeeLocation};
 use crate::{ScheduledSubtransaction, ScheduledTransaction, Subtransaction, Transaction};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum PlanId {
     Id(Uuid),
     LastUsed,
@@ -183,5 +183,98 @@ impl Client {
             client: self,
             last_knowledge_of_server: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ynab::testutil::{
+        TEST_ID_5, error_body, new_test_client, plan_details_fixture, plan_fixture,
+    };
+    use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    fn plans_list_fixture() -> serde_json::Value {
+        json!({ "data": { "plans": [plan_fixture()], "_default_plan": null } })
+    }
+
+    fn plan_single_fixture() -> serde_json::Value {
+        json!({ "data": { "plan": plan_details_fixture(), "server_knowledge": 5 } })
+    }
+
+    fn plan_settings_fixture() -> serde_json::Value {
+        json!({
+            "data": {
+                "settings": {
+                    "date_format": { "format": "MM/DD/YYYY" },
+                    "currency_format": {
+                        "iso_code": "USD", "example_format": "123,456.78", "decimal_digits": 2,
+                        "decimal_separator": ".", "symbol_first": true, "group_separator": ",",
+                        "currency_symbol": "$", "display_symbol": true
+                    }
+                }
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn get_plans_returns_plans() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path("/plans"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(plans_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let plans = client.get_plans().send().await.unwrap();
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].id.to_string(), TEST_ID_5);
+        assert_eq!(plans[0].name, "My Budget");
+    }
+
+    #[tokio::test]
+    async fn get_plan_returns_plan_and_server_knowledge() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path("/plans/last-used"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(plan_single_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (plan, sk) = client.get_plan(PlanId::LastUsed).send().await.unwrap();
+        assert_eq!(plan.plan.id.to_string(), TEST_ID_5);
+        assert_eq!(plan.plan.name, "My Budget");
+        assert_eq!(sk, 5);
+    }
+
+    #[tokio::test]
+    async fn get_plan_settings_returns_settings() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path("/plans/last-used/settings"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(plan_settings_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let settings = client.get_plan_settings(PlanId::LastUsed).await.unwrap();
+        assert_eq!(settings.currency_format.iso_code, "USD");
+    }
+
+    #[tokio::test]
+    async fn get_plan_returns_unauthorized() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path("/plans/last-used"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(error_body(
+                "401",
+                "unauthorized",
+                "Unauthorized",
+            )))
+            .mount(&server)
+            .await;
+        let err = client.get_plan(PlanId::LastUsed).send().await.unwrap_err();
+        assert!(matches!(err, Error::Unauthorized(_)));
     }
 }

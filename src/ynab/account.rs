@@ -36,11 +36,15 @@ pub enum AccountType {
     Savings,
     Cash,
     CreditCard,
+    LineOfCredit,
     OtherAsset,
     OtherLiability,
+    Mortgage,
+    AutoLoan,
     StudentLoan,
-    #[serde(other)]
-    Other,
+    PersonalLoan,
+    MedicalDebt,
+    OtherDebt,
 }
 
 /// A plan account. Amounts are in milliunits (divide by 1000 for display).
@@ -120,8 +124,15 @@ pub enum SaveAccountType {
     Savings,
     Cash,
     CreditCard,
+    LineOfCredit,
     OtherAsset,
     OtherLiability,
+    Mortgage,
+    AutoLoan,
+    StudentLoan,
+    PersonalLoan,
+    MedicalDebt,
+    OtherDebt,
 }
 
 impl TryFrom<&str> for SaveAccountType {
@@ -133,8 +144,15 @@ impl TryFrom<&str> for SaveAccountType {
             "savings" => Ok(SaveAccountType::Savings),
             "cash" => Ok(SaveAccountType::Cash),
             "creditCard" => Ok(SaveAccountType::CreditCard),
+            "lineOfCredit" => Ok(SaveAccountType::LineOfCredit),
             "otherAsset" => Ok(SaveAccountType::OtherAsset),
             "otherLiability" => Ok(SaveAccountType::OtherLiability),
+            "mortgage" => Ok(SaveAccountType::Mortgage),
+            "autoLoan" => Ok(SaveAccountType::AutoLoan),
+            "studentLoan" => Ok(SaveAccountType::StudentLoan),
+            "personalLoan" => Ok(SaveAccountType::PersonalLoan),
+            "medicalDebt" => Ok(SaveAccountType::MedicalDebt),
+            "otherDebt" => Ok(SaveAccountType::OtherDebt),
             _ => Err(format!("unknown account type: {}", value)),
         }
     }

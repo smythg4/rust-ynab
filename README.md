@@ -1,6 +1,6 @@
 # rust-ynab
 
-A Rust client for the [YNAB API](https://api.ynab.com). Requires a YNAB account and a [Personal Access Token](https://app.ynab.com/settings/developer).
+A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to all published YNAB API endpoints. Requires a YNAB account and a [Personal Access Token](https://app.ynab.com/settings/developer).
 
 ## Installation
 
@@ -16,7 +16,7 @@ rust-ynab = "0.1.0"
 All API access requires a Personal Access Token. Pass it to `Client::new`:
 
 ```rust
-let client = Client::new(std::env::var("YNAB_TOKEN")?)?;
+let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
 ```
 
 ### Quick Start
@@ -26,7 +26,7 @@ use rust_ynab::{Client, PlanId};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::new(std::env::var("YNAB_TOKEN")?)?;
+    let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
 
     let plans = client.get_plans().include_accounts().send().await?;
     for plan in plans {
@@ -40,17 +40,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Builder Pattern
+## Builder Pattern
 
 Methods that support optional parameters use a builder. Call the factory method on the client, chain any options, then call `.send()`:
 
 ```rust
-// delta request — only fetch changes since last sync
-let (groups, server_knowledge) = client
-    .get_categories(PlanId::LastUsed)
+// fetch only changes since the last sync
+let (transactions, server_knowledge) = client
+    .get_transactions(PlanId::LastUsed)
     .with_server_knowledge(last_known)
+    .since_date(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
     .send()
     .await?;
+
+// include sub-resources inline
+let plans = client.get_plans().include_accounts().send().await?;
 ```
 
 ## Rate Limiting
@@ -58,12 +62,30 @@ let (groups, server_knowledge) = client
 The [YNAB API](https://api.ynab.com/#rate-limiting) allows 200 requests per hour. `with_rate_limiter` enables a token bucket limiter that automatically spaces requests to stay within that limit:
 
 ```rust
-let client = Client::new(std::env::var("YNAB_TOKEN")?)?.with_rate_limiter(200, Some(10))?;
+let client = Client::new(&std::env::var("YNAB_TOKEN")?)?.with_rate_limiter(200, Some(10))?;
 ```
 
 The first argument is the request budget per hour; the second is the optional burst size — the number of requests that can be made immediately before throttling begins. To keep total consumption within YNAB's limit, the sustained rate is reduced by the burst size: `with_rate_limiter(200, Some(10))` allows 10 immediate requests, then throttles to 190 per hour. Calls block until a token is available rather than returning an error, so no retry logic is needed on the caller's side.
 
 Rate limiting is opt-in. Omit `with_rate_limiter` for scripts or one-off tools where request volume is not a concern.
+
+## Timeout
+
+The default request timeout is determined by `reqwest`. Use `with_timeout` to override it:
+
+```rust
+use std::time::Duration;
+
+let client = Client::new(&std::env::var("YNAB_TOKEN")?)?.with_timeout(Duration::from_secs(30))?;
+```
+
+Both `with_timeout` and `with_rate_limiter` return the client, so they can be chained:
+
+```rust
+let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
+    .with_rate_limiter(200, Some(10))?
+    .with_timeout(Duration::from_secs(30))?;
+```
 
 ## Error Handling
 
@@ -80,6 +102,21 @@ match client.get_plan(PlanId::LastUsed).send().await {
 
 Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `InternalServerError`, `ServiceUnavailable`.
 
+## Examples
+
+- [List plans](examples/list_plans.rs)
+- [Get plan month](examples/get_plan_month.rs)
+- [Get category balance](examples/get_category_balance.rs)
+- [List transactions](examples/list_transactions.rs)
+- [Create transaction](examples/create_transaction.rs)
+- [Create multiple transactions](examples/create_transactions.rs)
+- [Update transaction](examples/update_transaction.rs)
+- [Update multiple transactions](examples/update_transactions.rs)
+- [Update category budget](examples/update_category_budget.rs)
+- [Delete transaction](examples/delete_transaction.rs)
+- [Split transaction](examples/split_transaction.rs)
+- [Delta request](examples/delta_request.rs)
+
 ## API Coverage
 
 ### Plans
@@ -92,26 +129,26 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 ### Accounts
 | Method | Endpoint |
 |--------|----------|
-| `get_accounts` | `GET /plans/{plan_id}/accounts` |
+| `get_accounts` † | `GET /plans/{plan_id}/accounts` |
 | `get_account` | `GET /plans/{plan_id}/accounts/{account_id}` |
 | `create_account` | `POST /plans/{plan_id}/accounts` |
 
 ### Categories
 | Method | Endpoint |
 |--------|----------|
-| `get_categories` | `GET /plans/{plan_id}/categories` |
+| `get_categories` † | `GET /plans/{plan_id}/categories` |
 | `get_category` | `GET /plans/{plan_id}/categories/{category_id}` |
 | `get_category_for_month` | `GET /plans/{plan_id}/months/{month}/categories/{category_id}` |
-| `create_category` | `POST /plans/{plan_id}/categories` |
-| `create_category_group` | `POST /plans/{plan_id}/category_groups` |
-| `update_category` | `PATCH /plans/{plan_id}/categories/{category_id}` |
-| `update_category_for_month` | `PATCH /plans/{plan_id}/months/{month}/categories/{category_id}` |
-| `update_category_group` | `PATCH /plans/{plan_id}/category_groups/{category_group_id}` |
+| `create_category` † | `POST /plans/{plan_id}/categories` |
+| `create_category_group` † | `POST /plans/{plan_id}/category_groups` |
+| `update_category` † | `PATCH /plans/{plan_id}/categories/{category_id}` |
+| `update_category_for_month` † | `PATCH /plans/{plan_id}/months/{month}/categories/{category_id}` |
+| `update_category_group` † | `PATCH /plans/{plan_id}/category_groups/{category_group_id}` |
 
 ### Months
 | Method | Endpoint |
 |--------|----------|
-| `get_months` | `GET /plans/{plan_id}/months` |
+| `get_months` † | `GET /plans/{plan_id}/months` |
 | `get_month` | `GET /plans/{plan_id}/months/{month}` |
 
 ### Payees
@@ -153,37 +190,33 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 ### Money Movements
 | Method | Endpoint |
 |--------|----------|
-| `get_money_movements` | `GET /plans/{plan_id}/money_movements` |
-| `get_money_movements_by_month` | `GET /plans/{plan_id}/months/{month}/money_movements` |
-| `get_money_movement_groups` | `GET /plans/{plan_id}/money_movement_groups` |
-| `get_money_movement_groups_by_month` | `GET /plans/{plan_id}/months/{month}/money_movement_groups` |
+| `get_money_movements` † | `GET /plans/{plan_id}/money_movements` |
+| `get_money_movements_by_month` † | `GET /plans/{plan_id}/months/{month}/money_movements` |
+| `get_money_movement_groups` † | `GET /plans/{plan_id}/money_movement_groups` |
+| `get_money_movement_groups_by_month` † | `GET /plans/{plan_id}/months/{month}/money_movement_groups` |
 
 ### User
 | Method | Endpoint |
 |--------|----------|
 | `get_user` | `GET /user` |
 
-† Supports `.with_server_knowledge(sk)` on the builder for delta requests.
+† Returns server knowledge as a second return value for use with delta requests.
 
 ## Testing
 
-Unit tests use [wiremock](https://github.com/LukeMathWalker/wiremock-rs) to verify deserialization, error handling, and request shape without hitting the live API:
+Unit tests use [wiremock](https://github.com/LukeMathWalker/wiremock-rs) to cover request serialization, response deserialization, and error type dispatch without hitting the live API:
 
 ```
 cargo test
 ```
 
-Integration tests run against a real YNAB plan and require environment variables:
+Integration tests exercise the live API against a real plan and require `YNAB_TOKEN` and `YNAB_TEST_PLAN_ID` environment variables. They are opt-in via a feature flag:
 
 ```
-YNAB_TOKEN=<token> YNAB_TEST_PLAN_ID=<plan_id> cargo test --features integration
+YNAB_TOKEN=... YNAB_TEST_PLAN_ID=... cargo test --features integration
 ```
 
-## Roadmap
-
-- [ ] Unit tests for all modules (transactions, scheduled transactions, categories, payees, months, plans)
-- [ ] Integration test suite against a live YNAB plan
-- [ ] Usage examples mirroring common workflows
+> Unit test coverage is currently complete for `account`, `category`, `month`, `errors`, and `user`. Tests for `plan`, `transaction`, `payee`, `movements`, and `client` are in progress. Integration tests are not yet implemented.
 
 ## License
 

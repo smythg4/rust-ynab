@@ -102,7 +102,7 @@ pub fn payee_location_fixture() -> Value {
 
 pub fn transaction_fixture() -> Value {
     json!({
-        "id": "transaction-1",
+        "id": TEST_ID_1,
         "date": "2024-01-15",
         "amount": -50000,
         "memo": null,
@@ -117,6 +117,10 @@ pub fn transaction_fixture() -> Value {
         "category_id": TEST_ID_1,
         "category_name": "Groceries",
         "matched_transaction_id": null,
+        "import_id": null,
+        "import_payee_name": null,
+        "import_payee_name_original": null,
+        "deleted": false,
         "subtransactions": []
     })
 }
