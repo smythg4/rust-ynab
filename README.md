@@ -1,5 +1,6 @@
 # rust-ynab
-
+[![Crates.io](https://img.shields.io/crates/v/rust-ynab)](https://crates.io/crates/rust-ynab)
+[![docs.rs](https://docs.rs/rust-ynab/badge.svg)](https://docs.rs/rust-ynab)
 A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to all published YNAB API endpoints. Requires a YNAB account and a [Personal Access Token](https://app.ynab.com/settings/developer).
 
 ## Installation
