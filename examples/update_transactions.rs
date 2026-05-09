@@ -2,8 +2,8 @@ use uuid::Uuid;
 
 use rust_ynab::Client;
 use rust_ynab::PlanId;
+use rust_ynab::SaveTransactionWithIdOrImportId;
 use rust_ynab::milliunits_to_amount;
-use rust_ynab::ynab::transaction::SaveTransactionWithIdOrImportId;
 use std::collections::HashMap;
 
 /// Fetches the two most recent transactions, appends " (updated)" to their memos

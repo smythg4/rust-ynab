@@ -1,18 +1,41 @@
-pub mod display;
-pub mod ynab;
+//! A Rust client for the [YNAB API](https://api.ynab.com).
+//!
+//! # Quick Start
+//!
+//! ```rust,no_run
+//! use rust_ynab::{Client, PlanId};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
+//!     let plans = client.get_plans().include_accounts().send().await?;
+//!     for plan in plans {
+//!         println!("{}", plan.name);
+//!     }
+//!     Ok(())
+//! }
+//! ```
 
-pub use ynab::account::Account;
-pub use ynab::category::{Category, CategoryGroup};
+pub mod display;
+mod ynab;
+
+pub use ynab::account::{Account, AccountType, SaveAccount, SaveAccountType};
+pub use ynab::category::{
+    Category, CategoryGroup, GoalType, NewCategory, SaveCategory, SaveCategoryGroup,
+    SaveMonthCategory,
+};
 pub use ynab::client::Client;
 pub use ynab::common::{CurrencyFormat, DateFormat};
 pub use ynab::errors::{ApiError, Error};
 pub use ynab::month::Month;
 pub use ynab::movements::{MoneyMovement, MoneyMovementGroup};
-pub use ynab::payee::{Payee, PayeeLocation};
+pub use ynab::payee::{Payee, PayeeLocation, PostPayee, SavePayee};
 pub use ynab::plan::{Plan, PlanId, PlanSettings};
 pub use ynab::transaction::{
-    ClearedStatus, FlagColor, Frequency, ScheduledSubtransaction, ScheduledTransaction,
-    Subtransaction, Transaction, TransactionType,
+    ClearedStatus, ExistingTransaction, FlagColor, Frequency, NewTransaction,
+    SaveScheduledTransaction, SaveSubTransaction, SaveTransactionWithIdOrImportId,
+    SaveTransactionsResponse, ScheduledSubtransaction, ScheduledTransaction, Subtransaction,
+    Transaction, TransactionType,
 };
 pub use ynab::user::User;
 

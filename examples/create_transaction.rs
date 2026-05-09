@@ -1,7 +1,7 @@
 use rust_ynab::Client;
+use rust_ynab::NewTransaction;
 use rust_ynab::PlanId;
 use rust_ynab::milliunits_to_amount;
-use rust_ynab::ynab::transaction::NewTransaction;
 
 /// Creates a single transaction and prints the result.
 #[tokio::main]

@@ -1,7 +1,7 @@
 use rust_ynab::Client;
+use rust_ynab::NewTransaction;
 use rust_ynab::PlanId;
 use rust_ynab::milliunits_to_amount;
-use rust_ynab::ynab::transaction::NewTransaction;
 
 /// Fetches all transactions, creates one, then fetches again using server knowledge
 /// to demonstrate that only the newly created transaction is returned in the delta.

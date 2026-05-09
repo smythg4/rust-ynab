@@ -1,8 +1,8 @@
 use chrono::Datelike;
 use rust_ynab::Client;
 use rust_ynab::PlanId;
+use rust_ynab::SaveMonthCategory;
 use rust_ynab::milliunits_to_amount;
-use rust_ynab::ynab::category::SaveMonthCategory;
 
 /// Fetches the first eligible category, increases its budget for the current month
 /// by $10, and prints the before and after state.

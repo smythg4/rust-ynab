@@ -1,7 +1,7 @@
 use rust_ynab::Client;
+use rust_ynab::ExistingTransaction;
 use rust_ynab::PlanId;
 use rust_ynab::milliunits_to_amount;
-use rust_ynab::ynab::transaction::ExistingTransaction;
 
 /// Fetches the most recent transaction from the test plan, appends " (updated)"
 /// to its memo, and prints the before and after state.

@@ -1,16 +1,16 @@
 #[cfg(feature = "integration")]
-use rust_ynab::ynab::category::{NewCategory, SaveCategory, SaveCategoryGroup};
+use rust_ynab::Client;
 #[cfg(feature = "integration")]
-use rust_ynab::ynab::client::Client;
+use rust_ynab::PlanId;
 #[cfg(feature = "integration")]
-use rust_ynab::ynab::payee::{PostPayee, SavePayee};
-#[cfg(feature = "integration")]
-use rust_ynab::ynab::plan::PlanId;
-#[cfg(feature = "integration")]
-use rust_ynab::ynab::transaction::{
+use rust_ynab::{
     ExistingTransaction, Frequency, NewTransaction, SaveScheduledTransaction, SaveSubTransaction,
     SaveTransactionWithIdOrImportId,
 };
+#[cfg(feature = "integration")]
+use rust_ynab::{NewCategory, SaveCategory, SaveCategoryGroup};
+#[cfg(feature = "integration")]
+use rust_ynab::{PostPayee, SavePayee};
 #[cfg(feature = "integration")]
 use uuid::Uuid;
 

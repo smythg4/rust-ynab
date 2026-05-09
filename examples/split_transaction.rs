@@ -1,7 +1,7 @@
 use rust_ynab::Client;
 use rust_ynab::PlanId;
 use rust_ynab::milliunits_to_amount;
-use rust_ynab::ynab::transaction::{NewTransaction, SaveSubTransaction};
+use rust_ynab::{NewTransaction, SaveSubTransaction};
 
 /// Creates a split transaction with two sub-transactions and prints the result.
 /// The sum of sub-transaction amounts must equal the parent transaction amount.
