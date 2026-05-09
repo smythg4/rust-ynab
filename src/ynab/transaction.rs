@@ -60,10 +60,10 @@ struct SaveTransactionsDataEnvelope {
 /// Response from creating or batch-updating transactions.
 #[derive(Debug, Deserialize)]
 pub struct SaveTransactionsResponse {
-    pub transaction_ids: Vec<String>,
+    pub transaction_ids: Vec<Uuid>,
     pub transaction: Option<Transaction>,
     pub transactions: Option<Vec<Transaction>>,
-    pub duplicate_import_ids: Option<Vec<String>>,
+    pub duplicate_import_ids: Option<Vec<Uuid>>,
     pub server_knowledge: i64,
 }
 
@@ -771,7 +771,7 @@ mod tests {
     fn save_transactions_fixture() -> serde_json::Value {
         json!({
             "data": {
-                "transaction_ids": ["transaction-1"],
+                "transaction_ids": [TEST_ID_1],
                 "transaction": transaction_fixture(),
                 "transactions": [transaction_fixture()],
                 "duplicate_import_ids": null,
@@ -948,7 +948,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.transaction_ids, vec!["transaction-1"]);
+        assert_eq!(resp.transaction_ids, vec![uuid!(TEST_ID_1)]);
         assert_eq!(resp.transaction.unwrap().amount, -50000);
     }
 
@@ -981,7 +981,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.transaction_ids, vec!["transaction-1"]);
+        assert_eq!(resp.transaction_ids, vec![uuid!(TEST_ID_1)]);
     }
 
     #[tokio::test]
@@ -1050,7 +1050,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.transaction_ids, vec!["transaction-1"]);
+        assert_eq!(resp.transaction_ids, vec![uuid!(TEST_ID_1)]);
     }
 
     #[tokio::test]

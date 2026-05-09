@@ -123,11 +123,11 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
         sk,
         delta_sk
     );
-    let delta_ids: std::collections::HashSet<String> =
-        delta.iter().map(|tx| tx.id.to_string()).collect();
+    let delta_ids: std::collections::HashSet<Uuid> =
+        delta.iter().map(|tx| tx.id).collect();
     for id in &created.transaction_ids {
         assert!(
-            delta_ids.contains(id.as_str()),
+            delta_ids.contains(id),
             "created ID {} not in delta",
             id
         );
@@ -135,7 +135,7 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
 
     for tx_id in &created.transaction_ids {
         println!("deleting tx: {}", tx_id);
-        client.delete_transaction(plan_id, tx_id.parse()?).await?;
+        client.delete_transaction(plan_id, *tx_id).await?;
     }
 
     Ok(())
@@ -315,7 +315,7 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
     println!("batch updated {} transactions", updated_txs.len());
 
     for tx_id in &created.transaction_ids {
-        client.delete_transaction(plan_id, tx_id.parse()?).await?;
+        client.delete_transaction(plan_id, *tx_id).await?;
     }
 
     Ok(())
