@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "0.4.2"
+rust-ynab = "0.4.4"
 ```
 
 ## Usage
@@ -58,6 +58,23 @@ let (transactions, server_knowledge) = client
 // include sub-resources inline
 let plans = client.get_plans().include_accounts().send().await?;
 ```
+
+## Cancellation
+
+All client methods return standard Rust futures. Dropping a future cancels the in-flight request — no additional cancellation API is needed:
+
+```rust
+tokio::select! {
+    result = client.get_transactions(PlanId::LastUsed).send() => {
+        let (transactions, _) = result?;
+    }
+    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+        // request cancelled — future dropped here
+    }
+}
+```
+
+This works because the underlying `reqwest` futures are cancel-safe. For per-request timeouts, `with_timeout` on the client is simpler than `select!` when a uniform deadline applies to all calls.
 
 ## Rate Limiting
 

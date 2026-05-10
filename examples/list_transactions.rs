@@ -1,6 +1,6 @@
 use rust_ynab::Client;
 use rust_ynab::PlanId;
-use rust_ynab::display::print_transaction_table;
+use rust_ynab::print_transaction_table;
 
 /// Fetches all transactions for the test plan and prints them as a table.
 #[tokio::main]

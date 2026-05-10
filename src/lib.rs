@@ -16,7 +16,7 @@
 //! }
 //! ```
 
-pub mod display;
+mod display;
 mod ynab;
 
 pub use ynab::account::{Account, AccountType, SaveAccount, SaveAccountType};
@@ -38,6 +38,7 @@ pub use ynab::transaction::{
     Transaction, TransactionType,
 };
 pub use ynab::user::User;
+pub use display::print_transaction_table;
 
 /// Converts a YNAB milliunit amount to a dollar amount.
 ///
