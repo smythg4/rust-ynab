@@ -81,6 +81,7 @@ impl<'a> GetPayeesBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns payees and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<Payee>, i64), Error> {
         let result: PayeesDataEnvelope = self
             .client
@@ -91,7 +92,7 @@ impl<'a> GetPayeesBuilder<'a> {
 }
 
 impl Client {
-    /// Returns all payees. The second return value is server knowledge for delta requests.
+    /// Returns a builder for fetching all payees. Chain `.with_server_knowledge()` for a delta request.
     pub fn get_payees(&self, plan_id: PlanId) -> GetPayeesBuilder<'_> {
         GetPayeesBuilder {
             client: self,

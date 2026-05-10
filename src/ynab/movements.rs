@@ -66,6 +66,7 @@ impl<'a> GetMoneyMovementsBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns money movements and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<MoneyMovement>, i64), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
@@ -93,6 +94,7 @@ impl<'a> GetMoneyMovementGroupsBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns money movement groups and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<MoneyMovementGroup>, i64), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
@@ -114,7 +116,7 @@ impl<'a> GetMoneyMovementGroupsBuilder<'a> {
 }
 
 impl Client {
-    /// Returns all money movements. The second return value is server knowledge for delta requests.
+    /// Returns a builder for fetching all money movements. Chain `.with_server_knowledge()` for a delta request.
     pub fn get_money_movements(&self, plan_id: PlanId) -> GetMoneyMovementsBuilder<'_> {
         GetMoneyMovementsBuilder {
             client: self,
@@ -139,8 +141,7 @@ impl Client {
         Ok((result.data.money_movements, result.data.server_knowledge))
     }
 
-    /// Returns all money movement groups. The second return value is server knowledge for delta
-    /// requests.
+    /// Returns a builder for fetching all money movement groups. Chain `.with_server_knowledge()` for a delta request.
     pub fn get_money_movement_groups(&self, plan_id: PlanId) -> GetMoneyMovementGroupsBuilder<'_> {
         GetMoneyMovementGroupsBuilder {
             client: self,

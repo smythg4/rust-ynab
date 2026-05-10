@@ -24,7 +24,17 @@ impl fmt::Debug for Client {
 }
 
 impl Client {
-    /// Creates a new Client with the given Personal Access Token.
+    /// Creates a new client with the given Personal Access Token.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use rust_ynab::Client;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
+    /// # Ok(()) }
+    /// ```
     pub fn new(api_key: impl Into<String>) -> Result<Self, Error> {
         let api_key = api_key.into();
         let http_client = Self::build_http_client(&api_key, None)?;
@@ -55,7 +65,19 @@ impl Client {
         builder.build().map_err(Into::into)
     }
 
-    /// Sets the request timeout. Rebuilds the underlying HTTP client.
+    /// Sets the request timeout. Returns `self` for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use rust_ynab::Client;
+    /// use std::time::Duration;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
+    ///     .with_timeout(Duration::from_secs(30))?;
+    /// # Ok(()) }
+    /// ```
     pub fn with_timeout(mut self, timeout: Duration) -> Result<Self, Error> {
         self.http_client = Self::build_http_client(&self.api_key, Some(timeout))?;
         self.timeout = Some(timeout);
@@ -68,8 +90,7 @@ impl Client {
         Ok(self)
     }
 
-    /// Configures a token bucket rate limiter on the client.
-    /// The YNAB API enforces a rolling window of 200 requests per hour.
+    /// Configures a token bucket rate limiter on the client. Returns `self` for chaining.
     ///
     /// `requests_per_hour` is the total allowed requests per hour.
     /// `burst_volume` optionally allows a number of requests to be made immediately
@@ -77,8 +98,18 @@ impl Client {
     /// `requests_per_hour - burst_volume` to account for burst consumption.
     /// If `None`, no burst is allowed and the full rate is sustained evenly.
     ///
-    /// Example: `with_rate_limiter(200, Some(10))` allows 10 immediate requests,
-    /// then throttles to 190 requests per hour.
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use rust_ynab::Client;
+    /// use std::time::Duration;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
+    ///     .with_rate_limiter(200, Some(10))?  // 10 burst, then 190/hr
+    ///     .with_timeout(Duration::from_secs(30))?;
+    /// # Ok(()) }
+    /// ```
     pub fn with_rate_limiter(
         mut self,
         requests_per_hour: usize,

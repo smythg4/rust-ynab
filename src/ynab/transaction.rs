@@ -249,6 +249,7 @@ impl<'a> GetTransactionsBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns transactions and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<Transaction>, i64), Error> {
         let date_str = self.since_date.map(|d| d.to_string());
         let type_str = self.transaction_type.map(|t| t.to_string());
@@ -285,8 +286,29 @@ impl<'a> GetTransactionsBuilder<'a> {
 }
 
 impl Client {
-    /// Returns plan transactions, excluding any pending transactions. The second return value is
-    /// server knowledge for delta requests.
+    /// Returns a builder for fetching transactions. Chain `.with_server_knowledge()`,
+    /// `.since_date()`, or `.transaction_type()` before calling `.send()`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_ynab::{Client, PlanId};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
+    /// // Full fetch
+    /// let (transactions, server_knowledge) = client
+    ///     .get_transactions(PlanId::LastUsed)
+    ///     .send()
+    ///     .await?;
+    ///
+    /// // Delta request — only changes since last sync
+    /// let (changes, new_sk) = client
+    ///     .get_transactions(PlanId::LastUsed)
+    ///     .with_server_knowledge(server_knowledge)
+    ///     .send()
+    ///     .await?;
+    /// # Ok(()) }
+    /// ```
     pub fn get_transactions(&self, plan_id: PlanId) -> GetTransactionsBuilder<'_> {
         GetTransactionsBuilder {
             client: self,
@@ -313,7 +335,7 @@ impl Client {
         Ok((result.data.transaction, result.data.server_knowledge))
     }
 
-    /// Returns all transactions for a specified account, excluding any pending transactions.
+    /// Returns a builder for fetching transactions for a specified account.
     pub fn get_transactions_by_account(
         &self,
         plan_id: PlanId,
@@ -329,7 +351,7 @@ impl Client {
         }
     }
 
-    /// Returns all transactions for a specified category, excluding any pending transactions.
+    /// Returns a builder for fetching transactions for a specified category.
     pub fn get_transactions_by_category(
         &self,
         plan_id: PlanId,
@@ -345,7 +367,7 @@ impl Client {
         }
     }
 
-    /// Returns all transactions for a specified payee, excluding any pending transactions.
+    /// Returns a builder for fetching transactions for a specified payee.
     pub fn get_transactions_by_payee(
         &self,
         plan_id: PlanId,
@@ -361,7 +383,7 @@ impl Client {
         }
     }
 
-    /// Returns all transactions for a specified month, excluding any pending transactions.
+    /// Returns a builder for fetching transactions for a specified month.
     pub fn get_transactions_by_month(
         &self,
         plan_id: PlanId,
@@ -391,6 +413,7 @@ impl<'a> GetScheduledTransactionsBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns scheduled transactions and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<ScheduledTransaction>, i64), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
@@ -412,8 +435,8 @@ impl<'a> GetScheduledTransactionsBuilder<'a> {
 }
 
 impl Client {
-    /// Returns all scheduled transactions. The second return value is server knowledge for delta
-    /// requests.
+    /// Returns a builder for fetching all scheduled transactions. Chain `.with_server_knowledge()`
+    /// for a delta request.
     pub fn get_scheduled_transactions(
         &self,
         plan_id: PlanId,
@@ -602,6 +625,32 @@ struct PatchTransactionsWrapper {
 
 impl Client {
     /// Creates a single transaction. Returns the full save response including server knowledge.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_ynab::{Client, PlanId, NewTransaction, ClearedStatus};
+    /// # use uuid::Uuid;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
+    /// # let account_id: Uuid = "00000000-0000-0000-0000-000000000000".parse()?;
+    /// let resp = client.create_transaction(PlanId::LastUsed, NewTransaction {
+    ///     account_id,
+    ///     date: chrono::Local::now().date_naive(),
+    ///     amount: Some(-15000), // -$15.00
+    ///     memo: Some("Coffee".to_string()),
+    ///     cleared: Some(ClearedStatus::Cleared),
+    ///     approved: Some(true),
+    ///     payee_id: None,
+    ///     payee_name: None,
+    ///     category_id: None,
+    ///     flag_color: None,
+    ///     import_id: None,
+    ///     subtransactions: None,
+    /// }).await?;
+    /// let tx_id = resp.transaction.unwrap().id;
+    /// # Ok(()) }
+    /// ```
     pub async fn create_transaction(
         &self,
         plan_id: PlanId,

@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "0.4.0"
+rust-ynab = "0.4.2"
 ```
 
 ## Usage
@@ -225,4 +225,5 @@ YNAB_TOKEN=... YNAB_TEST_PLAN_ID=... cargo test --features integration
 
 ---
 
-Not affiliated with YNAB. [YNAB API Terms of Service](https://api.ynab.com/#terms).
+I am not affiliated, associated, or in any way officially connected with YNAB or any of its subsidiaries or affiliates. The official YNAB website can be found at https://www.ynab.com.
+The names YNAB and You Need A Budget, as well as related names, tradenames, marks, trademarks, emblems, and images are registered trademarks of YNAB. [YNAB API Terms of Service](https://api.ynab.com/#terms).

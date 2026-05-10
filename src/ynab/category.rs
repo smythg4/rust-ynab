@@ -112,6 +112,7 @@ impl<'a> GetCategoriesBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns category groups (each containing their categories) and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<CategoryGroup>, i64), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
@@ -127,9 +128,8 @@ impl<'a> GetCategoriesBuilder<'a> {
 }
 
 impl Client {
-    /// Returns all categories grouped by category group. Amounts (assigned, activity, available,
-    /// etc.) are specific to the current plan month (UTC). The second return value is server
-    /// knowledge for delta requests.
+    /// Returns a builder for fetching all categories grouped by category group. Chain
+    /// `.with_server_knowledge()` for a delta request.
     pub fn get_categories(&self, plan_id: PlanId) -> GetCategoriesBuilder<'_> {
         GetCategoriesBuilder {
             client: self,

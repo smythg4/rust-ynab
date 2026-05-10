@@ -12,6 +12,10 @@ use crate::{CurrencyFormat, DateFormat};
 use crate::{Payee, PayeeLocation};
 use crate::{ScheduledSubtransaction, ScheduledTransaction, Subtransaction, Transaction};
 
+/// Identifies a plan for use in API requests.
+///
+/// Use `PlanId::Id(uuid)` for a specific plan, `PlanId::LastUsed` for the most recently
+/// accessed plan, or `PlanId::Default` for the default plan.
 #[derive(Debug, Clone, Copy)]
 pub enum PlanId {
     Id(Uuid),
@@ -70,6 +74,7 @@ struct PlanSettingsData {
     settings: PlanSettings,
 }
 
+/// Date and currency format settings for a plan.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlanSettings {
     pub date_format: DateFormat,
@@ -116,11 +121,13 @@ pub struct GetPlansBuilder<'a> {
 }
 
 impl<'a> GetPlansBuilder<'a> {
+    /// Includes account details inline in each plan.
     pub fn include_accounts(mut self) -> GetPlansBuilder<'a> {
         self.include_accounts = true;
         self
     }
 
+    /// Sends the request. Returns a list of plans with summary information.
     pub async fn send(self) -> Result<Vec<Plan>, Error> {
         let params: Option<&[(&str, &str)]> = if self.include_accounts {
             Some(&[("include_accounts", "true")])
@@ -140,11 +147,14 @@ pub struct GetPlanBuilder<'a> {
 }
 
 impl<'a> GetPlanBuilder<'a> {
+    /// Requests only changes since a previous sync. Pass the `server_knowledge` value
+    /// returned by a prior call.
     pub fn with_server_knowledge(mut self, sk: i64) -> GetPlanBuilder<'a> {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
+    /// Sends the request. Returns the full plan export and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(PlanDetails, i64), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
@@ -159,7 +169,21 @@ impl<'a> GetPlanBuilder<'a> {
     }
 }
 impl Client {
-    /// Returns plans list with summary information.
+    /// Returns a builder for fetching all plans. Chain `.include_accounts()` to embed account
+    /// details inline.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_ynab::Client;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
+    /// let plans = client.get_plans().include_accounts().send().await?;
+    /// for plan in &plans {
+    ///     println!("{}: {} accounts", plan.name, plan.accounts.len());
+    /// }
+    /// # Ok(()) }
+    /// ```
     pub fn get_plans(&self) -> GetPlansBuilder<'_> {
         GetPlansBuilder {
             client: self,
@@ -175,8 +199,8 @@ impl Client {
         Ok(result.data.settings)
     }
 
-    /// Returns a single plan with all related entities. This resource is effectively a full plan
-    /// export. The second return value is server knowledge for delta requests.
+    /// Returns a builder for fetching a single plan with all related entities (a full plan export).
+    /// Chain `.with_server_knowledge()` for a delta request.
     pub fn get_plan(&self, plan_id: PlanId) -> GetPlanBuilder<'_> {
         GetPlanBuilder {
             plan_id,

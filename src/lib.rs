@@ -40,6 +40,13 @@ pub use ynab::transaction::{
 pub use ynab::user::User;
 
 /// Converts a YNAB milliunit amount to a dollar amount.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(rust_ynab::milliunits_to_amount(50000), 50.0);
+/// assert_eq!(rust_ynab::milliunits_to_amount(-1500), -1.5);
+/// ```
 pub fn milliunits_to_amount(milliunits: i64) -> f64 {
     milliunits as f64 / 1000.0
 }

@@ -80,6 +80,7 @@ impl<'a> GetAccountsBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns accounts and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<Account>, i64), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
@@ -95,7 +96,7 @@ impl<'a> GetAccountsBuilder<'a> {
 }
 
 impl Client {
-    /// Returns all accounts. The second return value is server knowledge for delta requests.
+    /// Returns a builder for fetching all accounts. Chain .with_server_knowledge() for a delta request.
     pub fn get_accounts(&self, plan_id: PlanId) -> GetAccountsBuilder<'_> {
         GetAccountsBuilder {
             client: self,

@@ -58,6 +58,7 @@ impl<'a> GetMonthsBuilder<'a> {
         self
     }
 
+    /// Sends the request. Returns months and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<Month>, i64), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
@@ -73,7 +74,7 @@ impl<'a> GetMonthsBuilder<'a> {
 }
 
 impl Client {
-    /// Returns all plan months. The second return value is server knowledge for delta requests.
+    /// Returns a builder for fetching all plan months. Chain `.with_server_knowledge()` for a delta request.
     pub fn get_months(&self, plan_id: PlanId) -> GetMonthsBuilder<'_> {
         GetMonthsBuilder {
             client: self,
