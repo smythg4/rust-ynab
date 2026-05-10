@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let (tx_resp, _) = client
-        .update_transaction(plan_id, tx.id, updated_tx)
+        .update_transaction(plan_id, &tx.id, updated_tx)
         .await?;
 
     println!("Updated Transaction\n");

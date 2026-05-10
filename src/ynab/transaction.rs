@@ -123,9 +123,13 @@ pub enum Frequency {
 
 /// A plan transaction, excluding any pending transactions. Amounts are in milliunits (divide by
 /// 1000 for display).
+///
+/// `id` is a `String` rather than `Uuid` because upcoming scheduled transaction instances use a
+/// compound format `{scheduled_uuid}_{date}` (e.g. `"abc123..._2025-06-01"`). Regular posted
+/// transactions have standard UUID ids.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
-    pub id: Uuid,
+    pub id: String,
     pub date: NaiveDate,
     pub amount: i64,
     pub memo: Option<String>,
@@ -324,7 +328,7 @@ impl Client {
     pub async fn get_transaction(
         &self,
         plan_id: PlanId,
-        transaction_id: &Uuid,
+        transaction_id: &str,
     ) -> Result<(Transaction, i64), Error> {
         let result: TransactionDataEnvelope = self
             .get(
@@ -485,7 +489,7 @@ impl Client {
     pub async fn delete_transaction(
         &self,
         plan_id: PlanId,
-        tx_id: Uuid,
+        tx_id: &str,
     ) -> Result<(Transaction, i64), Error> {
         let result: TransactionDataEnvelope = self
             .delete(&format!("plans/{}/transactions/{}", plan_id, tx_id))
@@ -705,7 +709,7 @@ impl Client {
     pub async fn update_transaction(
         &self,
         plan_id: PlanId,
-        tx_id: Uuid,
+        tx_id: &str,
         transaction: ExistingTransaction,
     ) -> Result<(Transaction, i64), Error> {
         let result: TransactionDataEnvelope = self
@@ -861,7 +865,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(txs.len(), 1);
-        assert_eq!(txs[0].id.to_string(), TEST_ID_1);
+        assert_eq!(txs[0].id, TEST_ID_1);
         assert_eq!(txs[0].amount, -50000);
         assert_eq!(sk, 10);
     }
@@ -879,10 +883,10 @@ mod tests {
             .mount(&server)
             .await;
         let (tx, sk) = client
-            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), &uuid!(TEST_ID_1))
+            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), TEST_ID_1)
             .await
             .unwrap();
-        assert_eq!(tx.id.to_string(), TEST_ID_1);
+        assert_eq!(tx.id, TEST_ID_1);
         assert_eq!(tx.amount, -50000);
         assert_eq!(sk, 10);
     }
@@ -1048,7 +1052,7 @@ mod tests {
         let (tx, sk) = client
             .update_transaction(
                 PlanId::Id(uuid!(TEST_ID_1)),
-                uuid!(TEST_ID_1),
+                TEST_ID_1,
                 ExistingTransaction {
                     amount: Some(-50000),
                     account_id: None,
@@ -1065,7 +1069,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(tx.id.to_string(), TEST_ID_1);
+        assert_eq!(tx.id, TEST_ID_1);
         assert_eq!(sk, 10);
     }
 
@@ -1115,10 +1119,10 @@ mod tests {
             .mount(&server)
             .await;
         let (tx, sk) = client
-            .delete_transaction(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_1))
+            .delete_transaction(PlanId::Id(uuid!(TEST_ID_1)), TEST_ID_1)
             .await
             .unwrap();
-        assert_eq!(tx.id.to_string(), TEST_ID_1);
+        assert_eq!(tx.id, TEST_ID_1);
         assert_eq!(sk, 10);
     }
 
@@ -1286,7 +1290,7 @@ mod tests {
             .mount(&server)
             .await;
         let err = client
-            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), &uuid!(TEST_ID_1))
+            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), &TEST_ID_1)
             .await
             .unwrap_err();
         assert!(matches!(err, Error::NotFound(_)));

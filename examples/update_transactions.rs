@@ -1,5 +1,3 @@
-use uuid::Uuid;
-
 use rust_ynab::Client;
 use rust_ynab::PlanId;
 use rust_ynab::SaveTransactionWithIdOrImportId;
@@ -31,15 +29,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let originals = &txs[txs.len() - 2..];
-    let mut old_memos: HashMap<Uuid, String> = HashMap::new();
+    let mut old_memos: HashMap<String, String> = HashMap::new();
     let mut patches = Vec::new();
 
     for tx in originals {
         let old_memo = tx.memo.as_deref().unwrap_or("").to_string();
         let new_memo = format!("{} (updated)", old_memo);
-        old_memos.insert(tx.id, old_memo);
+        old_memos.insert(tx.id.clone(), old_memo);
         patches.push(SaveTransactionWithIdOrImportId {
-            id: Some(tx.id),
+            id: Some(tx.id.parse()?),
             memo: Some(new_memo),
             import_id: None,
             account_id: None,
@@ -76,7 +74,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "   {:<10} {}  ->  {}",
             "Memo:",
-            old_memos.get(&tx.id).map(|s| s.as_str()).unwrap_or(""),
+            old_memos
+                .get(tx.id.as_str())
+                .map(|s| s.as_str())
+                .unwrap_or(""),
             tx.memo.as_deref().unwrap_or(""),
         );
         println!();

@@ -123,14 +123,21 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
         sk,
         delta_sk
     );
-    let delta_ids: std::collections::HashSet<Uuid> = delta.iter().map(|tx| tx.id).collect();
+    let delta_ids: std::collections::HashSet<String> =
+        delta.iter().map(|tx| tx.id.clone()).collect();
     for id in &created.transaction_ids {
-        assert!(delta_ids.contains(id), "created ID {} not in delta", id);
+        assert!(
+            delta_ids.contains(&id.to_string()),
+            "created ID {} not in delta",
+            id
+        );
     }
 
     for tx_id in &created.transaction_ids {
         println!("deleting tx: {}", tx_id);
-        client.delete_transaction(plan_id, *tx_id).await?;
+        client
+            .delete_transaction(plan_id, &tx_id.to_string())
+            .await?;
     }
 
     Ok(())
@@ -172,7 +179,9 @@ async fn transaction_create_get_delete() -> Result<(), GenericError> {
     assert_eq!(fetched.0.memo.as_deref(), Some(memo.as_str()));
     println!("fetched transaction: {}", fetched.0.id);
 
-    let (deleted, _) = client.delete_transaction(plan_id, tx_id).await?;
+    let (deleted, _) = client
+        .delete_transaction(plan_id, &tx_id.to_string())
+        .await?;
     assert_eq!(deleted.id, tx_id);
     println!("deleted transaction: {}", deleted.id);
 
@@ -222,13 +231,13 @@ async fn transaction_create_update_delete_single() -> Result<(), GenericError> {
         flag_color: None,
         subtransactions: None,
     };
-    let (updated, _) = client.update_transaction(plan_id, tx_id, existing).await?;
+    let (updated, _) = client.update_transaction(plan_id, &tx_id, existing).await?;
     assert_eq!(updated.id, tx_id);
     assert_eq!(updated.amount, 5000);
     assert_eq!(updated.memo.as_deref(), Some(memo.as_str()));
     println!("updated transaction: {}", updated.id);
 
-    let (deleted, _) = client.delete_transaction(plan_id, tx_id).await?;
+    let (deleted, _) = client.delete_transaction(plan_id, &tx_id).await?;
     assert_eq!(deleted.id, tx_id);
     println!("deleted transaction: {}", deleted.id);
 
@@ -285,7 +294,7 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
     let patches: Vec<SaveTransactionWithIdOrImportId> = txs
         .iter()
         .map(|tx| SaveTransactionWithIdOrImportId {
-            id: Some(tx.id.clone()),
+            id: Some(tx.id.parse().expect("transaction id is a valid UUID")),
             memo: Some(format!("{} (updated)", tx.memo.as_deref().unwrap_or(""))),
             import_id: None,
             account_id: None,
@@ -310,7 +319,9 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
     println!("batch updated {} transactions", updated_txs.len());
 
     for tx_id in &created.transaction_ids {
-        client.delete_transaction(plan_id, *tx_id).await?;
+        client
+            .delete_transaction(plan_id, &tx_id.to_string())
+            .await?;
     }
 
     Ok(())
@@ -369,7 +380,9 @@ async fn transaction_split() -> Result<(), GenericError> {
         tx.amount
     );
 
-    client.delete_transaction(plan_id, tx.id).await?;
+    client
+        .delete_transaction(plan_id, &tx.id.to_string())
+        .await?;
 
     Ok(())
 }

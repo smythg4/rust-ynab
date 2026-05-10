@@ -31,8 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let tx_id = txs.first().unwrap().id;
-    let (tx, _) = client.delete_transaction(plan_id, tx_id).await?;
+    let tx_id = txs.first().unwrap().id.clone();
+    let (tx, _) = client.delete_transaction(plan_id, &tx_id).await?;
 
     println!("Deleted Transaction\n");
     println!("   {:<10} {}", "ID:", tx.id);
