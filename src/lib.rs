@@ -18,6 +18,9 @@
 
 mod ynab;
 
+#[cfg(feature = "polars")]
+pub use ynab::polars::IntoDataFrame;
+
 pub use ynab::account::{Account, AccountType, SaveAccount};
 pub use ynab::category::{
     Category, CategoryGroup, GoalType, NewCategory, SaveCategory, SaveCategoryGroup,
