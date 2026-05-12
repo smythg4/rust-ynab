@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "0.4.8"
+rust-ynab = "0.4.9"
 ```
 
 ## Usage
@@ -41,6 +41,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## Polars Integration
+
+Enable the `polars` feature to convert any YNAB collection into a Polars [`DataFrame`](https://docs.rs/polars/latest/polars/frame/struct.DataFrame.html):
+
+```toml
+[dependencies]
+rust-ynab = { version = "0.4.9", features = ["polars"] }
+polars = { version = "...", features = ["lazy"] }
+```
+
+```rust
+use rust_ynab::IntoDataFrame;
+
+let (transactions, _) = client.get_transactions(PlanId::LastUsed).send().await?;
+let df = transactions.into_dataframe();
+println!("{df}");
+```
+
+All major YNAB types are supported: `Account`, `Transaction`, `Subtransaction`, `Category`, `CategoryGroup`, `Month`, `Payee`, `PayeeLocation`, `Plan`, `ScheduledTransaction`, `ScheduledSubtransaction`, `MoneyMovement`, and `MoneyMovementGroup`.
+
+With Polars' lazy API you can filter, group, and join across types:
+
+```rust
+use rust_ynab::IntoDataFrame;
+
+let (txs, _) = client.get_transactions(PlanId::LastUsed).send().await?;
+let result = txs.into_dataframe()
+    .lazy()
+    .filter(col("deleted").eq(lit(false)))
+    .filter(col("amount").lt(lit(0i64)))
+    .group_by([col("category_name")])
+    .agg([col("amount").sum().alias("total_spent")])
+    .sort(["total_spent"], SortMultipleOptions::default())
+    .collect()?;
+```
+
+Nested collections (e.g. `Transaction::subtransactions`) are replaced with a `*_count` column. Use the corresponding type's `into_dataframe()` and join on the shared ID column to access the full data.
 
 ## Builder Pattern
 

@@ -10,5 +10,8 @@ pub mod plan;
 pub mod transaction;
 pub mod user;
 
+#[cfg(feature = "polars")]
+pub mod polars;
+
 #[cfg(test)]
 pub mod testutil;
