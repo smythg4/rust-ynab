@@ -39,7 +39,8 @@ impl Client {
         let api_key = api_key.into();
         let http_client = Self::build_http_client(&api_key, None)?;
         Ok(Self {
-            base_url: reqwest::Url::parse("https://api.ynab.com/v1").expect("hardcoded base URL is always valid"),
+            base_url: reqwest::Url::parse("https://api.ynab.com/v1")
+                .expect("hardcoded base URL is always valid"),
             http_client,
             limiter: None,
             api_key,
