@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let resp = client.update_transactions(plan_id, patches).await?;
-    let updated = resp.transactions.unwrap_or_default();
+    let updated = resp.transactions;
 
     println!("Updated Transactions\n");
     println!("Plan: {}\n", plan.plan.name);

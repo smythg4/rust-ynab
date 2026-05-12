@@ -83,9 +83,14 @@ impl<'a> GetPayeesBuilder<'a> {
 
     /// Sends the request. Returns payees and server knowledge for use in subsequent delta requests.
     pub async fn send(self) -> Result<(Vec<Payee>, i64), Error> {
+        let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
+            Some(&[("last_knowledge_of_server", &sk.to_string())])
+        } else {
+            None
+        };
         let result: PayeesDataEnvelope = self
             .client
-            .get(&format!("plans/{}/payees", self.plan_id), NO_PARAMS)
+            .get(&format!("plans/{}/payees", self.plan_id), params)
             .await?;
         Ok((result.data.payees, result.data.server_knowledge))
     }

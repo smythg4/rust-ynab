@@ -117,43 +117,24 @@ impl Client {
     }
 }
 
-/// The type of account to create or update.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SaveAccountType {
-    Checking,
-    Savings,
-    Cash,
-    CreditCard,
-    LineOfCredit,
-    OtherAsset,
-    OtherLiability,
-    Mortgage,
-    AutoLoan,
-    StudentLoan,
-    PersonalLoan,
-    MedicalDebt,
-    OtherDebt,
-}
-
-impl TryFrom<&str> for SaveAccountType {
+impl TryFrom<&str> for AccountType {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "checking" => Ok(SaveAccountType::Checking),
-            "savings" => Ok(SaveAccountType::Savings),
-            "cash" => Ok(SaveAccountType::Cash),
-            "creditCard" => Ok(SaveAccountType::CreditCard),
-            "lineOfCredit" => Ok(SaveAccountType::LineOfCredit),
-            "otherAsset" => Ok(SaveAccountType::OtherAsset),
-            "otherLiability" => Ok(SaveAccountType::OtherLiability),
-            "mortgage" => Ok(SaveAccountType::Mortgage),
-            "autoLoan" => Ok(SaveAccountType::AutoLoan),
-            "studentLoan" => Ok(SaveAccountType::StudentLoan),
-            "personalLoan" => Ok(SaveAccountType::PersonalLoan),
-            "medicalDebt" => Ok(SaveAccountType::MedicalDebt),
-            "otherDebt" => Ok(SaveAccountType::OtherDebt),
+            "checking" => Ok(AccountType::Checking),
+            "savings" => Ok(AccountType::Savings),
+            "cash" => Ok(AccountType::Cash),
+            "creditCard" => Ok(AccountType::CreditCard),
+            "lineOfCredit" => Ok(AccountType::LineOfCredit),
+            "otherAsset" => Ok(AccountType::OtherAsset),
+            "otherLiability" => Ok(AccountType::OtherLiability),
+            "mortgage" => Ok(AccountType::Mortgage),
+            "autoLoan" => Ok(AccountType::AutoLoan),
+            "studentLoan" => Ok(AccountType::StudentLoan),
+            "personalLoan" => Ok(AccountType::PersonalLoan),
+            "medicalDebt" => Ok(AccountType::MedicalDebt),
+            "otherDebt" => Ok(AccountType::OtherDebt),
             _ => Err(format!("unknown account type: {}", value)),
         }
     }
@@ -164,7 +145,7 @@ impl TryFrom<&str> for SaveAccountType {
 pub struct SaveAccount {
     pub name: String,
     #[serde(rename = "type")]
-    pub acct_type: SaveAccountType,
+    pub acct_type: AccountType,
     pub balance: i64,
 }
 
@@ -280,7 +261,7 @@ mod tests {
         let input_account = account_fixture();
         let account = SaveAccount {
             name: input_account["name"].as_str().unwrap().to_string(),
-            acct_type: SaveAccountType::try_from(input_account["type"].as_str().unwrap()).unwrap(),
+            acct_type: AccountType::try_from(input_account["type"].as_str().unwrap()).unwrap(),
             balance: input_account["balance"].as_i64().unwrap(),
         };
 
@@ -325,7 +306,7 @@ mod tests {
 
         let account = SaveAccount {
             name: "A bad bad name".to_string(),
-            acct_type: SaveAccountType::Cash,
+            acct_type: AccountType::Cash,
             balance: -500,
         };
         let err = client
@@ -349,7 +330,7 @@ mod tests {
 
         let account = SaveAccount {
             name: "A conflicting conflicting name".to_string(),
-            acct_type: SaveAccountType::Cash,
+            acct_type: AccountType::Cash,
             balance: -500,
         };
         let err = client

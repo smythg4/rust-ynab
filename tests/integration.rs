@@ -97,11 +97,11 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
     let created = client.create_transactions(plan_id, new_txs).await?;
 
     assert_eq!(
-        created.transactions.as_ref().unwrap().len(),
+        created.transactions.len(),
         expected_len,
         "expected {} created transaction IDs, got {}",
         expected_len,
-        created.transactions.as_ref().unwrap().len()
+        created.transactions.len()
     );
     println!("created transactions: {:?}", created.transactions);
 
@@ -170,7 +170,7 @@ async fn transaction_create_get_delete() -> Result<(), GenericError> {
         )
         .await?;
 
-    let tx_id = created.transaction.ok_or("no transaction in response")?.id;
+    let tx_id = created.transaction.id;
     println!("created transaction: {}", tx_id);
 
     let fetched = client.get_transaction(plan_id, &tx_id).await?;
@@ -215,7 +215,7 @@ async fn transaction_create_update_delete_single() -> Result<(), GenericError> {
         )
         .await?;
 
-    let tx_id = created.transaction.ok_or("no transaction in response")?.id;
+    let tx_id = created.transaction.id;
     println!("created transaction: {}", tx_id);
 
     let existing = ExistingTransaction {
@@ -287,10 +287,7 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
         .await?;
     assert_eq!(created.transaction_ids.len(), 2);
 
-    let txs = created
-        .transactions
-        .as_ref()
-        .ok_or("no transactions in create response")?;
+    let txs = created.transactions;
     let patches: Vec<SaveTransactionWithIdOrImportId> = txs
         .iter()
         .map(|tx| SaveTransactionWithIdOrImportId {
@@ -311,10 +308,7 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
         .collect();
 
     let updated = client.update_transactions(plan_id, patches).await?;
-    let updated_txs = updated
-        .transactions
-        .as_ref()
-        .ok_or("no transactions in update response")?;
+    let updated_txs = updated.transactions;
     assert_eq!(updated_txs.len(), 2);
     println!("batch updated {} transactions", updated_txs.len());
 
@@ -368,9 +362,7 @@ async fn transaction_split() -> Result<(), GenericError> {
         )
         .await?;
 
-    let tx = created
-        .transaction
-        .ok_or("no transaction in create response")?;
+    let tx = created.transaction;
     assert_eq!(tx.subtransactions.len(), 2);
     let subtotal: i64 = tx.subtransactions.iter().map(|s| s.amount).sum();
     assert_eq!(subtotal, tx.amount);

@@ -18,7 +18,7 @@
 
 mod ynab;
 
-pub use ynab::account::{Account, AccountType, SaveAccount, SaveAccountType};
+pub use ynab::account::{Account, AccountType, SaveAccount};
 pub use ynab::category::{
     Category, CategoryGroup, GoalType, NewCategory, SaveCategory, SaveCategoryGroup,
     SaveMonthCategory,
@@ -32,9 +32,9 @@ pub use ynab::payee::{Payee, PayeeLocation, PostPayee, SavePayee};
 pub use ynab::plan::{Plan, PlanId, PlanSettings};
 pub use ynab::transaction::{
     ClearedStatus, ExistingTransaction, FlagColor, Frequency, NewTransaction,
-    SaveScheduledTransaction, SaveSubTransaction, SaveTransactionWithIdOrImportId,
-    SaveTransactionsResponse, ScheduledSubtransaction, ScheduledTransaction, Subtransaction,
-    Transaction, TransactionType,
+    SaveScheduledTransaction, SaveSubTransaction, SaveTransactionResponse,
+    SaveTransactionWithIdOrImportId, SaveTransactionsResponse, ScheduledSubtransaction,
+    ScheduledTransaction, Subtransaction, Transaction, TransactionType,
 };
 pub use ynab::user::User;
 

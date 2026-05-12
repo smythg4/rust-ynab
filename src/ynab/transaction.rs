@@ -57,12 +57,25 @@ struct SaveTransactionsDataEnvelope {
     data: SaveTransactionsResponse,
 }
 
+#[derive(Debug, Deserialize)]
+struct SaveTransactionDataEnvelope {
+    data: SaveTransactionResponse,
+}
+
 /// Response from creating or batch-updating transactions.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SaveTransactionsResponse {
     pub transaction_ids: Vec<Uuid>,
-    pub transaction: Option<Transaction>,
-    pub transactions: Option<Vec<Transaction>>,
+    pub transactions: Vec<Transaction>,
+    pub duplicate_import_ids: Option<Vec<Uuid>>,
+    pub server_knowledge: i64,
+}
+
+/// Response from creating or single updating transactions.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct SaveTransactionResponse {
+    pub transaction_ids: Vec<Uuid>,
+    pub transaction: Transaction,
     pub duplicate_import_ids: Option<Vec<Uuid>>,
     pub server_knowledge: i64,
 }
@@ -153,6 +166,8 @@ pub struct Subtransaction {
     pub category_name: Option<String>,
     pub transfer_account_id: Option<Uuid>,
     pub transfer_transaction_id: Option<String>,
+    #[serde(default)]
+    pub deleted: bool,
 }
 
 /// A scheduled transaction. Amounts are in milliunits (divide by 1000 for display).
@@ -574,7 +589,7 @@ pub struct SaveTransactionWithIdOrImportId {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub import_id: Option<Uuid>,
+    pub import_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -601,8 +616,12 @@ pub struct SaveTransactionWithIdOrImportId {
 
 #[derive(Debug, Serialize)]
 struct PostTransactionsWrapper {
-    transaction: Option<NewTransaction>,
-    transactions: Option<Vec<NewTransaction>>,
+    transactions: Vec<NewTransaction>,
+}
+
+#[derive(Debug, Serialize)]
+struct PostTransactionWrapper {
+    transaction: NewTransaction,
 }
 
 #[derive(Debug, Serialize)]
@@ -640,21 +659,18 @@ impl Client {
     ///     import_id: None,
     ///     subtransactions: None,
     /// }).await?;
-    /// let tx_id = resp.transaction.unwrap().id;
+    /// let tx_id = resp.transaction.id;
     /// # Ok(()) }
     /// ```
     pub async fn create_transaction(
         &self,
         plan_id: PlanId,
         transaction: NewTransaction,
-    ) -> Result<SaveTransactionsResponse, Error> {
-        let result: SaveTransactionsDataEnvelope = self
+    ) -> Result<SaveTransactionResponse, Error> {
+        let result: SaveTransactionDataEnvelope = self
             .post(
                 &format!("plans/{}/transactions", plan_id),
-                PostTransactionsWrapper {
-                    transaction: Some(transaction),
-                    transactions: None,
-                },
+                PostTransactionWrapper { transaction },
             )
             .await?;
         Ok(result.data)
@@ -669,10 +685,7 @@ impl Client {
         let result: SaveTransactionsDataEnvelope = self
             .post(
                 &format!("plans/{}/transactions", plan_id),
-                PostTransactionsWrapper {
-                    transaction: None,
-                    transactions: Some(transactions),
-                },
+                PostTransactionsWrapper { transactions },
             )
             .await?;
         Ok(result.data)
@@ -990,7 +1003,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.transaction_ids, vec![uuid!(TEST_ID_1)]);
-        assert_eq!(resp.transaction.unwrap().amount, -50000);
+        assert_eq!(resp.transaction.amount, -50000);
     }
 
     #[tokio::test]

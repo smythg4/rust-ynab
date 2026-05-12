@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let resp = client.create_transaction(plan_id, tx).await?;
-    let tx = resp.transaction.ok_or("no transaction in response")?;
+    let tx = resp.transaction;
 
     println!("Created Transaction\n");
     println!("Plan: {}", plan.plan.name);

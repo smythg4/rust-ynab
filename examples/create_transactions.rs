@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     let resp = client.create_transactions(plan.id(), new_txs).await?;
-    let txs = resp.transactions.ok_or("no transactions in response")?;
+    let txs = resp.transactions;
 
     println!("Created {} transactions\n", txs.len());
     for tx in txs {
