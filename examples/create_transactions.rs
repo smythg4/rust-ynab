@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         NewTransaction {
             account_id,
             date: chrono::Local::now().date_naive(),
-            amount: Some(1000),
+            amount: 1000,
             payee_id: None,
             payee_name: None,
             category_id: None,
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         NewTransaction {
             account_id,
             date: chrono::Local::now().date_naive(),
-            amount: Some(2000),
+            amount: 2000,
             payee_id: None,
             payee_name: None,
             category_id: None,
@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         NewTransaction {
             account_id,
             date: chrono::Local::now().date_naive(),
-            amount: Some(3000),
+            amount: 3000,
             payee_id: None,
             payee_name: None,
             category_id: None,

@@ -1,26 +1,18 @@
 use crate::ynab::errors::{Error, ErrorResponse};
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
-use std::fmt;
+use secrecy::ExposeSecret;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[derive(Debug)]
 /// Client is the YNAB API client. Use Client::new() to create one.
 pub struct Client {
     base_url: reqwest::Url,
     http_client: reqwest::Client,
     limiter: Option<Arc<DefaultDirectRateLimiter>>,
-    api_key: String,
+    api_key: secrecy::SecretBox<String>,
     timeout: Option<Duration>,
-}
-
-impl fmt::Debug for Client {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Client")
-            .field("base_url", &self.base_url)
-            .field("api_key", &"[redacted]")
-            .finish()
-    }
 }
 
 impl Client {
@@ -36,8 +28,8 @@ impl Client {
     /// # Ok(()) }
     /// ```
     pub fn new(api_key: impl Into<String>) -> Result<Self, Error> {
-        let api_key = api_key.into();
-        let http_client = Self::build_http_client(&api_key, None)?;
+        let api_key = secrecy::SecretBox::new(Box::new(api_key.into()));
+        let http_client = Self::build_http_client(api_key.expose_secret(), None)?;
         Ok(Self {
             base_url: reqwest::Url::parse("https://api.ynab.com/v1")
                 .expect("hardcoded base URL is always valid"),
@@ -80,7 +72,7 @@ impl Client {
     /// # Ok(()) }
     /// ```
     pub fn with_timeout(mut self, timeout: Duration) -> Result<Self, Error> {
-        self.http_client = Self::build_http_client(&self.api_key, Some(timeout))?;
+        self.http_client = Self::build_http_client(self.api_key.expose_secret(), Some(timeout))?;
         self.timeout = Some(timeout);
         Ok(self)
     }

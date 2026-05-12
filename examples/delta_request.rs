@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let new_tx = NewTransaction {
         account_id,
         date: chrono::Local::now().date_naive(),
-        amount: Some(1000),
+        amount: 1000,
         payee_id: None,
         payee_name: None,
         category_id: None,

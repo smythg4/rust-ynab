@@ -65,7 +65,7 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
         NewTransaction {
             account_id,
             date: chrono::Local::now().date_naive(),
-            amount: Some(1000),
+            amount: 1000,
             payee_id: None,
             payee_name: None,
             category_id: None,
@@ -79,7 +79,7 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
         NewTransaction {
             account_id,
             date: chrono::Local::now().date_naive(),
-            amount: Some(2000),
+            amount: 2000,
             payee_id: None,
             payee_name: None,
             category_id: None,
@@ -156,7 +156,7 @@ async fn transaction_create_get_delete() -> Result<(), GenericError> {
             NewTransaction {
                 account_id,
                 date: chrono::Local::now().date_naive(),
-                amount: Some(1000),
+                amount: 1000,
                 memo: Some(memo.clone()),
                 cleared: Some(rust_ynab::ClearedStatus::Uncleared),
                 approved: Some(false),
@@ -201,7 +201,7 @@ async fn transaction_create_update_delete_single() -> Result<(), GenericError> {
             NewTransaction {
                 account_id,
                 date: chrono::Local::now().date_naive(),
-                amount: Some(1000),
+                amount: 1000,
                 memo: Some(memo.clone()),
                 cleared: Some(rust_ynab::ClearedStatus::Uncleared),
                 approved: Some(false),
@@ -257,7 +257,7 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
                 NewTransaction {
                     account_id,
                     date: chrono::Local::now().date_naive(),
-                    amount: Some(500),
+                    amount: 500,
                     memo: Some("integration batch tx 1".to_string()),
                     cleared: Some(rust_ynab::ClearedStatus::Uncleared),
                     approved: Some(false),
@@ -271,7 +271,7 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
                 NewTransaction {
                     account_id,
                     date: chrono::Local::now().date_naive(),
-                    amount: Some(750),
+                    amount: 750,
                     memo: Some("integration batch tx 2".to_string()),
                     cleared: Some(rust_ynab::ClearedStatus::Uncleared),
                     approved: Some(false),
@@ -333,7 +333,7 @@ async fn transaction_split() -> Result<(), GenericError> {
             NewTransaction {
                 account_id,
                 date: chrono::Local::now().date_naive(),
-                amount: Some(5000),
+                amount: 5000,
                 memo: Some("integration split transaction".to_string()),
                 cleared: Some(rust_ynab::ClearedStatus::Uncleared),
                 approved: Some(false),

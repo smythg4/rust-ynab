@@ -65,18 +65,20 @@ struct SaveTransactionDataEnvelope {
 /// Response from creating or batch-updating transactions.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SaveTransactionsResponse {
-    pub transaction_ids: Vec<Uuid>,
     pub transactions: Vec<Transaction>,
-    pub duplicate_import_ids: Option<Vec<Uuid>>,
+
+    pub transaction_ids: Vec<String>,
+    pub duplicate_import_ids: Option<Vec<String>>,
     pub server_knowledge: i64,
 }
 
 /// Response from creating or single updating transactions.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SaveTransactionResponse {
-    pub transaction_ids: Vec<Uuid>,
     pub transaction: Transaction,
-    pub duplicate_import_ids: Option<Vec<Uuid>>,
+
+    pub transaction_ids: Vec<String>,
+    pub duplicate_import_ids: Option<Vec<String>>,
     pub server_knowledge: i64,
 }
 
@@ -101,6 +103,8 @@ pub enum FlagColor {
     Green,
     Blue,
     Purple,
+    #[serde(rename = "")]
+    None,
 }
 
 /// The recurrence frequency of a scheduled transaction.
@@ -189,6 +193,8 @@ pub struct ScheduledTransaction {
     pub category_name: Option<String>,
     pub subtransactions: Vec<ScheduledSubtransaction>,
     pub transfer_account_id: Option<Uuid>,
+    #[serde(default)]
+    pub deleted: bool,
 }
 
 /// A line item within a split scheduled transaction. Amounts are in milliunits (divide by 1000 for
@@ -207,6 +213,7 @@ pub struct ScheduledSubtransaction {
     pub deleted: bool,
 }
 
+/// Used for filtering on get_transactions
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TransactionType {
     Uncategorized,
@@ -533,8 +540,7 @@ pub struct SaveSubTransaction {
 pub struct NewTransaction {
     pub account_id: Uuid,
     pub date: NaiveDate,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub amount: Option<i64>,
+    pub amount: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payee_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -648,7 +654,7 @@ impl Client {
     /// let resp = client.create_transaction(PlanId::LastUsed, NewTransaction {
     ///     account_id,
     ///     date: chrono::Local::now().date_naive(),
-    ///     amount: Some(-15000), // -$15.00
+    ///     amount: -15000, // -$15.00
     ///     memo: Some("Coffee".to_string()),
     ///     cleared: Some(ClearedStatus::Cleared),
     ///     approved: Some(true),
@@ -988,7 +994,7 @@ mod tests {
                 NewTransaction {
                     account_id: uuid!(TEST_ID_1),
                     date: NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
-                    amount: Some(-50000),
+                    amount: -50000,
                     memo: None,
                     cleared: Some(ClearedStatus::Cleared),
                     approved: Some(true),
@@ -1002,7 +1008,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.transaction_ids, vec![uuid!(TEST_ID_1)]);
+        assert_eq!(resp.transaction_ids, vec![TEST_ID_1]);
         assert_eq!(resp.transaction.amount, -50000);
     }
 
@@ -1021,7 +1027,7 @@ mod tests {
                 vec![NewTransaction {
                     account_id: uuid!(TEST_ID_1),
                     date: NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
-                    amount: Some(-50000),
+                    amount: -50000,
                     memo: None,
                     cleared: Some(ClearedStatus::Cleared),
                     approved: Some(true),
@@ -1035,7 +1041,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.transaction_ids, vec![uuid!(TEST_ID_1)]);
+        assert_eq!(resp.transaction_ids, vec![TEST_ID_1]);
     }
 
     #[tokio::test]
@@ -1104,7 +1110,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.transaction_ids, vec![uuid!(TEST_ID_1)]);
+        assert_eq!(resp.transaction_ids, vec![TEST_ID_1]);
     }
 
     #[tokio::test]

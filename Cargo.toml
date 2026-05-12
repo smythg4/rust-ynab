@@ -1,6 +1,6 @@
 [package]
 name = "rust-ynab"
-version = "0.4.7"
+version = "0.4.8"
 edition = "2024"
 description = "A Rust client for the YNAB API"
 license = "MIT"
@@ -16,6 +16,7 @@ integration = []
 chrono = { version = "0.4", features = ["serde"] }
 governor = "0.10.4"
 reqwest = { version="0.13.3", features = ["json", "query"] }
+secrecy = "0.10.3"
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"
 tokio = { version = "1.52.2", features = ["full"] }

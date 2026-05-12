@@ -47,7 +47,7 @@ struct PlanDataEnvelope {
 struct PlanData {
     plans: Vec<Plan>,
     // users can use PlanId::Default to directly interact with the default plan
-    _default_plan: Option<Plan>,
+    default_plan: Option<Plan>,
 }
 
 /// Summary information for a plan.
@@ -221,7 +221,7 @@ mod tests {
     use wiremock::{Mock, ResponseTemplate};
 
     fn plans_list_fixture() -> serde_json::Value {
-        json!({ "data": { "plans": [plan_fixture()], "_default_plan": null } })
+        json!({ "data": { "plans": [plan_fixture()], "default_plan": null } })
     }
 
     fn plan_single_fixture() -> serde_json::Value {
