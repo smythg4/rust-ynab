@@ -47,6 +47,7 @@ struct PlanDataEnvelope {
 struct PlanData {
     plans: Vec<Plan>,
     // users can use PlanId::Default to directly interact with the default plan
+    #[allow(dead_code)]
     default_plan: Option<Plan>,
 }
 
