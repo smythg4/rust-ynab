@@ -40,7 +40,7 @@ struct CategoryGroupData {
 }
 
 /// A group of budget categories.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CategoryGroup {
     pub id: Uuid,
     pub name: String,
@@ -52,7 +52,7 @@ pub struct CategoryGroup {
 
 /// A budget category. Amounts (assigned, activity, available, etc.) are specific to the current
 /// plan month (UTC) and are in milliunits (divide by 1000 for display).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Category {
     pub id: Uuid,
     pub category_group_id: Uuid,
@@ -83,7 +83,7 @@ pub struct Category {
 }
 
 /// The type of savings or spending goal assigned to a category.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum GoalType {
     #[serde(rename = "TB")]
     TargetBalance, // "TB"
@@ -171,13 +171,13 @@ impl Client {
 }
 
 /// The category group to create or update.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SaveCategoryGroup {
     pub name: String,
 }
 
 /// The category to create.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NewCategory {
     pub name: String,
     pub category_group_id: Uuid,
@@ -188,7 +188,7 @@ pub struct NewCategory {
 }
 
 /// The category to update. Only specified (non-`None`) fields will be changed.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SaveCategory {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -205,7 +205,7 @@ pub struct SaveCategory {
 }
 
 /// The month category to update. Only `budgeted` (assigned) can be changed.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SaveMonthCategory {
     pub budgeted: i64,
 }

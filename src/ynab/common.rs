@@ -1,20 +1,20 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DateFormat {
-    format: String,
+    pub format: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CurrencyFormat {
     pub iso_code: String,
-    example_format: String,
-    decimal_digits: usize,
-    decimal_separator: char,
-    symbol_first: bool,
-    group_separator: String,
-    currency_symbol: String,
-    display_symbol: bool,
+    pub example_format: String,
+    pub decimal_digits: usize,
+    pub decimal_separator: char,
+    pub symbol_first: bool,
+    pub group_separator: String,
+    pub currency_symbol: String,
+    pub display_symbol: bool,
 }
 
-pub const NO_PARAMS: Option<&[(&str, &str)]> = None;
+pub(crate) const NO_PARAMS: Option<&[(&str, &str)]> = None;

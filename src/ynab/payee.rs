@@ -29,7 +29,7 @@ struct PayeeData {
 }
 
 /// A payee for a plan.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Payee {
     pub id: Uuid,
     pub name: String,
@@ -59,7 +59,7 @@ struct PayeeLocationsData {
 
 /// A GPS location stored when a transaction is entered on a mobile device. Locations will not be
 /// available for all payees.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PayeeLocation {
     pub id: Uuid,
     pub payee_id: Uuid,
@@ -149,7 +149,7 @@ impl Client {
 
 /// Request body for creating a new payee. Name is required and must not exceed 500
 /// characters.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PostPayee {
     pub name: String,
 }
@@ -160,7 +160,7 @@ struct PostPayeeWrapper {
 
 /// Request body for updating an existing payee. All fields are optional; omitted fields are
 /// not changed.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SavePayee {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

@@ -16,7 +16,7 @@ struct UserData {
 }
 
 /// The authenticated YNAB user.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
     pub id: Uuid,
 }

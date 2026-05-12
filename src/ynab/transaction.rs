@@ -58,7 +58,7 @@ struct SaveTransactionsDataEnvelope {
 }
 
 /// Response from creating or batch-updating transactions.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SaveTransactionsResponse {
     pub transaction_ids: Vec<Uuid>,
     pub transaction: Option<Transaction>,
@@ -70,7 +70,7 @@ pub struct SaveTransactionsResponse {
 // --- Enums ---
 
 /// The cleared status of a transaction.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClearedStatus {
     Cleared,
@@ -79,7 +79,7 @@ pub enum ClearedStatus {
 }
 
 /// The color of a transaction flag.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FlagColor {
     Red,
@@ -91,33 +91,21 @@ pub enum FlagColor {
 }
 
 /// The recurrence frequency of a scheduled transaction.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Frequency {
-    #[serde(rename = "never")]
     Never,
-    #[serde(rename = "daily")]
     Daily,
-    #[serde(rename = "weekly")]
     Weekly,
-    #[serde(rename = "everyOtherWeek")]
     EveryOtherWeek,
-    #[serde(rename = "twiceAMonth")]
     TwiceAMonth,
-    #[serde(rename = "every4Weeks")]
     Every4Weeks,
-    #[serde(rename = "monthly")]
     Monthly,
-    #[serde(rename = "everyOtherMonth")]
     EveryOtherMonth,
-    #[serde(rename = "every3Months")]
     Every3Months,
-    #[serde(rename = "every4Months")]
     Every4Months,
-    #[serde(rename = "twiceAYear")]
     TwiceAYear,
-    #[serde(rename = "yearly")]
     Yearly,
-    #[serde(rename = "everyOtherYear")]
     EveryOtherYear,
 }
 
@@ -127,9 +115,10 @@ pub enum Frequency {
 /// `id` is a `String` rather than `Uuid` because upcoming scheduled transaction instances use a
 /// compound format `{scheduled_uuid}_{date}` (e.g. `"abc123..._2025-06-01"`). Regular posted
 /// transactions have standard UUID ids.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transaction {
     pub id: String,
+    pub account_name: String,
     pub date: NaiveDate,
     pub amount: i64,
     pub memo: Option<String>,
@@ -139,7 +128,6 @@ pub struct Transaction {
     pub flag_name: Option<String>,
     pub account_id: Uuid,
     pub payee_id: Option<Uuid>,
-    pub account_name: Option<String>,
     pub payee_name: Option<String>,
     pub category_id: Option<Uuid>,
     pub category_name: Option<String>,
@@ -153,7 +141,7 @@ pub struct Transaction {
 }
 
 /// A line item within a split transaction. Amounts are in milliunits (divide by 1000 for display).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Subtransaction {
     pub id: String,
     pub transaction_id: String,
@@ -168,7 +156,7 @@ pub struct Subtransaction {
 }
 
 /// A scheduled transaction. Amounts are in milliunits (divide by 1000 for display).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScheduledTransaction {
     pub id: Uuid,
     pub date_first: NaiveDate,
@@ -190,7 +178,7 @@ pub struct ScheduledTransaction {
 
 /// A line item within a split scheduled transaction. Amounts are in milliunits (divide by 1000 for
 /// display).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScheduledSubtransaction {
     pub id: Uuid,
     pub scheduled_transaction_id: Uuid,
@@ -204,7 +192,7 @@ pub struct ScheduledSubtransaction {
     pub deleted: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TransactionType {
     Uncategorized,
     Unapproved,
@@ -219,7 +207,7 @@ impl std::fmt::Display for TransactionType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum TransactionScope {
     All,
     ByAccount(Uuid),
@@ -227,7 +215,7 @@ enum TransactionScope {
     ByPayee(Uuid),
     ByMonth(NaiveDate),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetTransactionsBuilder<'a> {
     client: &'a Client,
     scope: TransactionScope,
@@ -404,7 +392,7 @@ impl Client {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetScheduledTransactionsBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
@@ -512,7 +500,7 @@ impl Client {
 }
 
 /// A subtransaction within a split transaction to be created or updated.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SaveSubTransaction {
     pub amount: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -526,7 +514,7 @@ pub struct SaveSubTransaction {
 }
 
 /// Request body for creating a new transaction.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NewTransaction {
     pub account_id: Uuid,
     pub date: NaiveDate,
@@ -553,7 +541,7 @@ pub struct NewTransaction {
 }
 
 /// Request body for updating an existing transaction (PUT single).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ExistingTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_id: Option<Uuid>,
@@ -581,7 +569,7 @@ pub struct ExistingTransaction {
 
 /// Request body for a single transaction within a batch update (PATCH).
 /// Either `id` or `import_id` must be specified to identify the transaction.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SaveTransactionWithIdOrImportId {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
@@ -776,7 +764,7 @@ impl Client {
 }
 
 /// Request body for creating or updating a scheduled transaction.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SaveScheduledTransaction {
     pub account_id: Uuid,
     pub date: NaiveDate,

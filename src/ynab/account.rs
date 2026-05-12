@@ -29,7 +29,7 @@ struct AccountsData {
 }
 
 /// The type of account.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AccountType {
     Checking,
@@ -48,7 +48,7 @@ pub enum AccountType {
 }
 
 /// A plan account. Amounts are in milliunits (divide by 1000 for display).
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Account {
     pub id: Uuid,
     pub name: String,
@@ -118,7 +118,7 @@ impl Client {
 }
 
 /// The type of account to create or update.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SaveAccountType {
     Checking,
@@ -160,7 +160,7 @@ impl TryFrom<&str> for SaveAccountType {
 }
 
 /// The account to create.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SaveAccount {
     pub name: String,
     #[serde(rename = "type")]

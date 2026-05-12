@@ -31,7 +31,7 @@ struct MonthsData {
 /// A plan month. This is where Ready to Assign, Age of Money, and category amounts
 /// (assigned, activity, available) are available. Amounts are in milliunits (divide by 1000 for
 /// display).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Month {
     pub month: NaiveDate,
     pub note: Option<String>,

@@ -47,11 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Updated Transaction\n");
     println!("   {:<10} {}", "ID:", tx_resp.id);
-    println!(
-        "   {:<10} {}",
-        "Account:",
-        tx_resp.account_name.as_deref().unwrap_or("")
-    );
+    println!("   {:<10} {}", "Account:", tx_resp.account_name);
     println!("   {:<10} {}", "Date:", tx_resp.date);
     println!(
         "   {:<10} ${:.2}",

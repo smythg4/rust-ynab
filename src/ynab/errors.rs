@@ -5,7 +5,7 @@ pub(crate) struct ErrorResponse {
     pub(crate) error: ApiError,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ApiError {
     pub id: String,
     pub name: String,

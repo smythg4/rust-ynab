@@ -16,7 +16,7 @@ use crate::{ScheduledSubtransaction, ScheduledTransaction, Subtransaction, Trans
 ///
 /// Use `PlanId::Id(uuid)` for a specific plan, `PlanId::LastUsed` for the most recently
 /// accessed plan, or `PlanId::Default` for the default plan.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlanId {
     Id(Uuid),
     LastUsed,
@@ -51,7 +51,7 @@ struct PlanData {
 }
 
 /// Summary information for a plan.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
     pub id: Uuid,
     pub name: String,
@@ -75,7 +75,7 @@ struct PlanSettingsData {
 }
 
 /// Date and currency format settings for a plan.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanSettings {
     pub date_format: DateFormat,
     pub currency_format: CurrencyFormat,
@@ -93,7 +93,7 @@ struct PlanDetailsData {
 }
 
 /// A single plan with all related entities. This resource is effectively a full plan export.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanDetails {
     #[serde(flatten)]
     pub plan: Plan,

@@ -30,7 +30,7 @@ struct MoneyMovementGroupsData {
 }
 
 /// A movement of money between categories. Amounts are in milliunits (divide by 1000 for display).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MoneyMovement {
     pub id: Uuid,
     pub month: Option<NaiveDate>,
@@ -44,7 +44,7 @@ pub struct MoneyMovement {
 }
 
 /// A group of related money movements.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MoneyMovementGroup {
     pub id: Uuid,
     pub group_created_at: DateTime<chrono::Utc>,
