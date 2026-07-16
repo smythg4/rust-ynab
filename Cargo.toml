@@ -1,6 +1,6 @@
 [package]
 name = "rust-ynab"
-version = "0.4.12"
+version = "0.4.13"
 edition = "2024"
 description = "A Rust client for the YNAB API"
 license = "MIT"
@@ -15,6 +15,7 @@ polars = ["dep:polars"]
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3.32"
 governor = "0.10.4"
 polars = { version = "0.53.0", features = ["lazy"], optional = true }
 reqwest = { version="0.13.3", features = ["json", "query"] }

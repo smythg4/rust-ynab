@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "0.4.12"
+rust-ynab = "0.4.13"
 ```
 
 ## Usage
@@ -48,7 +48,7 @@ Enable the `polars` feature to convert any YNAB collection into a Polars [`DataF
 
 ```toml
 [dependencies]
-rust-ynab = { version = "0.4.12", features = ["polars"] }
+rust-ynab = { version = "0.4.13", features = ["polars"] }
 polars = { version = "...", features = ["lazy"] }
 ```
 
@@ -126,6 +126,23 @@ let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
 The first argument is the request budget per hour; the second is the optional burst size — the number of requests that can be made immediately before throttling begins. To keep total consumption within YNAB's limit, the sustained rate is reduced by the burst size: `with_rate_limiter(200, Some(10))` allows 10 immediate requests, then throttles to 190 per hour. Calls block until a token is available rather than returning an error, so no retry logic is needed on the caller's side.
 
 Rate limiting is opt-in. Omit `with_rate_limiter` for scripts or one-off tools where request volume is not a concern.
+
+## Retry
+
+`with_retry` enables automatic retry of transient failures — 429 (rate limited) and 503 (service unavailable) responses, plus connection-level errors for `GET` requests:
+
+```rust
+use std::time::Duration;
+
+let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
+    .with_retry(3, Duration::from_millis(200), Duration::from_secs(10));
+```
+
+The arguments are `max_retries`, a base delay, and a delay cap. If a response carries a `Retry-After` header, that value is used as-is; otherwise the wait is `base_delay * 2^attempt`, capped at `max_delay`.
+
+Retries are safe by construction. A `GET` is always retried, since nothing was written. A write (`POST`/`PUT`/`PATCH`/`DELETE`) is only retried when a response actually came back with status 429 or 503 — meaning YNAB rejected the request before processing it. A write is never retried on a connection error or timeout, since there's no way to tell whether the server already applied it before the connection dropped, and retrying blind risks a duplicate transaction.
+
+Retry is opt-in, like `with_rate_limiter` — omit `with_retry` to fail immediately on any error.
 
 ## Timeout
 
@@ -255,6 +272,7 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 | `update_transaction` | `PUT /plans/{plan_id}/transactions/{transaction_id}` |
 | `update_transactions` | `PATCH /plans/{plan_id}/transactions` |
 | `delete_transaction` † | `DELETE /plans/{plan_id}/transactions/{transaction_id}` |
+| `delete_transactions_bulk` ‡ | `DELETE /plans/{plan_id}/transactions/{transaction_id}` |
 | `import_transactions` | `POST /plans/{plan_id}/transactions/import` |
 
 ### Scheduled Transactions
@@ -280,6 +298,8 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 | `get_user` | `GET /user` |
 
 † Returns server knowledge as a second return value for use with delta requests.
+
+‡ A client-side helper, not a distinct YNAB endpoint — deletes multiple transactions concurrently (bounded by a `concurrency` argument) via repeated calls to `delete_transaction`, returning one `Result` per input in the same order.
 
 ## Test Coverage
 

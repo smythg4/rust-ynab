@@ -213,11 +213,19 @@ async fn get_transactions_delta_request() -> Result<(), GenericError> {
         );
     }
 
-    for tx_id in &created.transaction_ids {
-        println!("deleting tx: {}", tx_id);
-        client
-            .delete_transaction(plan_id, &tx_id.to_string())
-            .await?;
+    let results = client
+        .delete_transactions_bulk(
+            plan_id,
+            &created
+                .transaction_ids
+                .iter()
+                .map(|t| t.as_str())
+                .collect::<Vec<&str>>(),
+            5,
+        )
+        .await;
+    for r in results {
+        let _ = r?;
     }
 
     Ok(())
@@ -392,10 +400,19 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
     assert_eq!(updated_txs.len(), 2);
     println!("batch updated {} transactions", updated_txs.len());
 
-    for tx_id in &created.transaction_ids {
-        client
-            .delete_transaction(plan_id, &tx_id.to_string())
-            .await?;
+    let results = client
+        .delete_transactions_bulk(
+            plan_id,
+            &created
+                .transaction_ids
+                .iter()
+                .map(|t| t.as_str())
+                .collect::<Vec<&str>>(),
+            5,
+        )
+        .await;
+    for r in results {
+        let _ = r?;
     }
 
     Ok(())

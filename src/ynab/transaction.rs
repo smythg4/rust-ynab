@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -694,6 +695,21 @@ impl Client {
         Ok((result.data.transaction, result.data.server_knowledge))
     }
 
+    /// Deletes a batch of transactions with up to `concurrency` requests in flight at once.
+    /// Returns one result per input, in the same order as `tx_ids`.
+    pub async fn delete_transactions_bulk(
+        &self,
+        plan_id: PlanId,
+        tx_ids: &[&str],
+        concurrency: usize,
+    ) -> Vec<Result<(Transaction, i64), Error>> {
+        stream::iter(tx_ids)
+            .map(|tid| self.delete_transaction(plan_id, tid))
+            .buffered(concurrency)
+            .collect()
+            .await
+    }
+
     /// Imports available transactions on all linked accounts for the given
     /// plan. The response for this endpoint contains the transaction
     /// ids that have been imported.
@@ -999,8 +1015,9 @@ struct ScheduledTransactionWrapper {
 mod tests {
     use super::*;
     use crate::ynab::testutil::{
-        TEST_ID_1, TEST_ID_3, TEST_ID_4, error_body, hybrid_transaction_fixture, new_test_client,
-        scheduled_transaction_fixture, transaction_fixture,
+        TEST_ID_1, TEST_ID_2, TEST_ID_3, TEST_ID_4, TEST_ID_5, error_body,
+        hybrid_transaction_fixture, new_test_client, scheduled_transaction_fixture,
+        transaction_fixture,
     };
     use serde_json::json;
     use uuid::uuid;
@@ -1017,6 +1034,12 @@ mod tests {
 
     fn transaction_single_fixture() -> serde_json::Value {
         json!({ "data": { "transaction": transaction_fixture(), "server_knowledge": 10 } })
+    }
+
+    fn transaction_single_fixture_with_id(id: &str) -> serde_json::Value {
+        let mut tx = transaction_fixture();
+        tx["id"] = json!(id);
+        json!({ "data": { "transaction": tx, "server_knowledge": 10 } })
     }
 
     fn save_transactions_fixture() -> serde_json::Value {
@@ -1350,6 +1373,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_transactions_bulk_returns_results_in_order() {
+        let (client, server) = new_test_client().await;
+        let plan_id = PlanId::Id(uuid!(TEST_ID_5));
+        let tx_ids = [TEST_ID_1, TEST_ID_2, TEST_ID_4];
+
+        for id in tx_ids {
+            Mock::given(method("DELETE"))
+                .and(path(format!("/plans/{}/transactions/{}", TEST_ID_5, id)))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(transaction_single_fixture_with_id(id)),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+
+        let results = client.delete_transactions_bulk(plan_id, &tx_ids, 2).await;
+
+        assert_eq!(results.len(), 3);
+        for (result, expected_id) in results.into_iter().zip(tx_ids) {
+            let (tx, sk) = result.unwrap();
+            assert_eq!(tx.id, expected_id);
+            assert_eq!(sk, 10);
+        }
+    }
+
+    #[tokio::test]
+    async fn delete_transactions_bulk_preserves_order_on_partial_failure() {
+        let (client, server) = new_test_client().await;
+        let plan_id = PlanId::Id(uuid!(TEST_ID_5));
+        let tx_ids = [TEST_ID_1, TEST_ID_2];
+
+        Mock::given(method("DELETE"))
+            .and(path(format!(
+                "/plans/{}/transactions/{}",
+                TEST_ID_5, TEST_ID_1
+            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(transaction_single_fixture_with_id(TEST_ID_1)),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path(format!(
+                "/plans/{}/transactions/{}",
+                TEST_ID_5, TEST_ID_2
+            )))
+            .respond_with(ResponseTemplate::new(404).set_body_json(error_body(
+                "404",
+                "not_found",
+                "Transaction not found",
+            )))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let results = client.delete_transactions_bulk(plan_id, &tx_ids, 2).await;
+
+        assert_eq!(results.len(), 2);
+        let (tx, _) = results[0].as_ref().unwrap();
+        assert_eq!(tx.id, TEST_ID_1);
+        assert!(matches!(results[1], Err(Error::NotFound(_))));
+    }
+
+    #[tokio::test]
     async fn import_transactions_returns_ids() {
         let (client, server) = new_test_client().await;
         Mock::given(method("POST"))
@@ -1513,7 +1604,7 @@ mod tests {
             .mount(&server)
             .await;
         let err = client
-            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), &TEST_ID_1)
+            .get_transaction(PlanId::Id(uuid!(TEST_ID_1)), TEST_ID_1)
             .await
             .unwrap_err();
         assert!(matches!(err, Error::NotFound(_)));

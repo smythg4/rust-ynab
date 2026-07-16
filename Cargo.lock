@@ -2655,9 +2655,10 @@ dependencies = [
 
 [[package]]
 name = "rust-ynab"
-version = "0.4.12"
+version = "0.4.13"
 dependencies = [
  "chrono",
+ "futures",
  "governor",
  "polars",
  "reqwest 0.13.3",
