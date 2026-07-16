@@ -6,7 +6,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let plans = client.get_plans().include_accounts().send().await?;
     for plan in plans {
-        println!("{}", plan.name);
+        println!("[{}] {}", plan.id, plan.name);
         for acct in &plan.accounts {
             println!("   {}", acct.name);
         }

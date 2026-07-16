@@ -1,5 +1,6 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::Client;
@@ -30,6 +31,7 @@ struct AccountsData {
 
 /// The type of account.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[non_exhaustive]
 #[serde(rename_all = "camelCase")]
 pub enum AccountType {
     Checking,
@@ -45,6 +47,20 @@ pub enum AccountType {
     PersonalLoan,
     MedicalDebt,
     OtherDebt,
+    #[serde(other)]
+    Other,
+}
+
+/// The type of account usable to create a new account.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SaveAccountType {
+    Checking,
+    Savings,
+    Cash,
+    CreditCard,
+    OtherAsset,
+    OtherLiability,
 }
 
 /// A plan account. Amounts are in milliunits (divide by 1000 for display).
@@ -61,9 +77,14 @@ pub struct Account {
     pub cleared_balance: i64,
     pub uncleared_balance: i64,
     pub transfer_payee_id: Option<uuid::Uuid>,
-    pub direct_import_linked: bool,
-    pub direct_import_in_error: bool,
+    pub direct_import_linked: Option<bool>,
+    pub direct_import_in_error: Option<bool>,
     pub last_reconciled_at: Option<DateTime<chrono::Utc>>,
+    pub debt_original_balance: Option<i64>, // deprecated
+    // these three are keyed by date string and store milliunits
+    pub debt_interest_rates: Option<HashMap<String, i64>>,
+    pub debt_minimum_payments: Option<HashMap<String, i64>>,
+    pub debt_escrow_amounts: Option<HashMap<String, i64>>,
     pub deleted: bool,
 }
 
@@ -117,25 +138,18 @@ impl Client {
     }
 }
 
-impl TryFrom<&str> for AccountType {
+impl TryFrom<&str> for SaveAccountType {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "checking" => Ok(AccountType::Checking),
-            "savings" => Ok(AccountType::Savings),
-            "cash" => Ok(AccountType::Cash),
-            "creditCard" => Ok(AccountType::CreditCard),
-            "lineOfCredit" => Ok(AccountType::LineOfCredit),
-            "otherAsset" => Ok(AccountType::OtherAsset),
-            "otherLiability" => Ok(AccountType::OtherLiability),
-            "mortgage" => Ok(AccountType::Mortgage),
-            "autoLoan" => Ok(AccountType::AutoLoan),
-            "studentLoan" => Ok(AccountType::StudentLoan),
-            "personalLoan" => Ok(AccountType::PersonalLoan),
-            "medicalDebt" => Ok(AccountType::MedicalDebt),
-            "otherDebt" => Ok(AccountType::OtherDebt),
-            _ => Err(format!("unknown account type: {}", value)),
+            "checking" => Ok(Self::Checking),
+            "savings" => Ok(Self::Savings),
+            "cash" => Ok(Self::Cash),
+            "creditCard" => Ok(Self::CreditCard),
+            "otherAsset" => Ok(Self::OtherAsset),
+            "otherLiability" => Ok(Self::OtherLiability),
+            _ => Err(format!("unknown SaveAccount type: {}", value)),
         }
     }
 }
@@ -145,7 +159,7 @@ impl TryFrom<&str> for AccountType {
 pub struct SaveAccount {
     pub name: String,
     #[serde(rename = "type")]
-    pub acct_type: AccountType,
+    pub acct_type: SaveAccountType,
     pub balance: i64,
 }
 
@@ -261,7 +275,7 @@ mod tests {
         let input_account = account_fixture();
         let account = SaveAccount {
             name: input_account["name"].as_str().unwrap().to_string(),
-            acct_type: AccountType::try_from(input_account["type"].as_str().unwrap()).unwrap(),
+            acct_type: SaveAccountType::try_from(input_account["type"].as_str().unwrap()).unwrap(),
             balance: input_account["balance"].as_i64().unwrap(),
         };
 
@@ -306,7 +320,7 @@ mod tests {
 
         let account = SaveAccount {
             name: "A bad bad name".to_string(),
-            acct_type: AccountType::Cash,
+            acct_type: SaveAccountType::Cash,
             balance: -500,
         };
         let err = client
@@ -330,7 +344,7 @@ mod tests {
 
         let account = SaveAccount {
             name: "A conflicting conflicting name".to_string(),
-            acct_type: AccountType::Cash,
+            acct_type: SaveAccountType::Cash,
             balance: -500,
         };
         let err = client

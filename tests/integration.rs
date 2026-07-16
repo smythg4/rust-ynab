@@ -1,4 +1,6 @@
 #[cfg(feature = "integration")]
+use chrono::Datelike;
+#[cfg(feature = "integration")]
 use rust_ynab::Client;
 #[cfg(feature = "integration")]
 use rust_ynab::PlanId;
@@ -8,7 +10,7 @@ use rust_ynab::{
     SaveTransactionWithIdOrImportId,
 };
 #[cfg(feature = "integration")]
-use rust_ynab::{NewCategory, SaveCategory, SaveCategoryGroup};
+use rust_ynab::{NewCategory, SaveCategory, SaveCategoryGroup, SaveMonthCategory};
 #[cfg(feature = "integration")]
 use rust_ynab::{PostPayee, SavePayee};
 #[cfg(feature = "integration")]
@@ -33,6 +35,84 @@ async fn first_account_id(client: &Client, plan_id: PlanId) -> Result<Uuid, Gene
         return Err("no accounts found".to_string().into());
     }
     Ok(accounts.first().unwrap().id)
+}
+
+#[cfg(feature = "integration")]
+#[tokio::test]
+async fn get_plan_full_export() -> Result<(), GenericError> {
+    let (client, plan_id) = setup()?;
+
+    let (plan, sk) = client.get_plan(plan_id).send().await?;
+    assert!(sk > 0, "expected server_knowledge > 0, got {}", sk);
+    assert!(!plan.plan.name.is_empty());
+    assert!(
+        !plan.plan.accounts.is_empty(),
+        "expected at least one account"
+    );
+    assert!(
+        !plan.category_groups.is_empty(),
+        "expected at least one category group"
+    );
+    println!(
+        "plan export: {} accounts, {} category_groups, {} transactions, {} scheduled_transactions, server_knowledge: {}",
+        plan.plan.accounts.len(),
+        plan.category_groups.len(),
+        plan.transactions.len(),
+        plan.scheduled_transactions.len(),
+        sk,
+    );
+
+    Ok(())
+}
+
+#[cfg(feature = "integration")]
+#[tokio::test]
+async fn update_category_for_month_sets_budgeted() -> Result<(), GenericError> {
+    let (client, plan_id) = setup()?;
+
+    let (groups, _) = client.get_categories(plan_id).send().await?;
+    let category = groups
+        .iter()
+        .filter(|g| g.name != "Internal Master Category")
+        .flat_map(|g| g.categories.iter())
+        .find(|c| !c.hidden && !c.deleted)
+        .ok_or("no usable category found")?;
+
+    let today = chrono::Local::now().date_naive();
+    let month = chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap();
+    let original_budgeted = category.budgeted;
+    let new_budgeted = original_budgeted + 1000;
+
+    let (updated, sk) = client
+        .update_category_for_month(
+            plan_id,
+            month,
+            category.id,
+            SaveMonthCategory {
+                budgeted: new_budgeted,
+            },
+        )
+        .await?;
+
+    assert_eq!(updated.budgeted, new_budgeted);
+    assert!(sk > 0);
+    println!(
+        "updated category '{}' budgeted from {} to {} for {}",
+        updated.name, original_budgeted, updated.budgeted, month
+    );
+
+    client
+        .update_category_for_month(
+            plan_id,
+            month,
+            category.id,
+            SaveMonthCategory {
+                budgeted: original_budgeted,
+            },
+        )
+        .await?;
+
+    Ok(())
 }
 
 #[cfg(feature = "integration")]
@@ -291,7 +371,7 @@ async fn transactions_create_batch_and_update_batch() -> Result<(), GenericError
     let patches: Vec<SaveTransactionWithIdOrImportId> = txs
         .iter()
         .map(|tx| SaveTransactionWithIdOrImportId {
-            id: Some(tx.id.parse().expect("transaction id is a valid UUID")),
+            id: Some(tx.id.clone()),
             memo: Some(format!("{} (updated)", tx.memo.as_deref().unwrap_or(""))),
             import_id: None,
             account_id: None,

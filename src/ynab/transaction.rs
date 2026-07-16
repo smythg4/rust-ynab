@@ -32,6 +32,17 @@ struct TransactionsData {
 }
 
 #[derive(Debug, Deserialize)]
+struct HybridTransactionsDataEnvelope {
+    data: HybridTransactionsData,
+}
+
+#[derive(Debug, Deserialize)]
+struct HybridTransactionsData {
+    transactions: Vec<HybridTransaction>,
+    server_knowledge: i64,
+}
+
+#[derive(Debug, Deserialize)]
 struct ScheduledTransactionDataEnvelope {
     data: ScheduledTransactionData,
 }
@@ -65,6 +76,7 @@ struct SaveTransactionDataEnvelope {
 /// Response from creating or batch-updating transactions.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SaveTransactionsResponse {
+    #[serde(default)]
     pub transactions: Vec<Transaction>,
 
     pub transaction_ids: Vec<String>,
@@ -86,15 +98,19 @@ pub struct SaveTransactionResponse {
 
 /// The cleared status of a transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum ClearedStatus {
     Cleared,
     Uncleared,
     Reconciled,
+    #[serde(other)]
+    Other,
 }
 
 /// The color of a transaction flag.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum FlagColor {
     Red,
@@ -105,10 +121,13 @@ pub enum FlagColor {
     Purple,
     #[serde(rename = "")]
     None,
+    #[serde(other)]
+    Other,
 }
 
 /// The recurrence frequency of a scheduled transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 #[serde(rename_all = "camelCase")]
 pub enum Frequency {
     Never,
@@ -124,10 +143,14 @@ pub enum Frequency {
     TwiceAYear,
     Yearly,
     EveryOtherYear,
+    #[serde(other)]
+    Other,
 }
 
-/// A plan transaction, excluding any pending transactions. Amounts are in milliunits (divide by
-/// 1000 for display).
+/// A transaction returned by dedicated transaction endpoints (`get_transactions`,
+/// `get_transaction`, etc.). Includes named fields (`account_name`, `payee_name`,
+/// `category_name`) and `subtransactions` not present in the plan export. For the plan export
+/// variant, see [`TransactionSummary`]. Amounts are in milliunits (divide by 1000 for display).
 ///
 /// `id` is a `String` rather than `Uuid` because upcoming scheduled transaction instances use a
 /// compound format `{scheduled_uuid}_{date}` (e.g. `"abc123..._2025-06-01"`). Regular posted
@@ -152,6 +175,9 @@ pub struct Transaction {
     pub import_id: Option<String>,
     pub import_payee_name: Option<String>,
     pub import_payee_name_original: Option<String>,
+    pub transfer_account_id: Option<Uuid>,
+    pub transfer_transaction_id: Option<String>,
+    pub debt_transaction_type: Option<DebtTransactionType>,
     pub deleted: bool,
     #[serde(default)]
     pub subtransactions: Vec<Subtransaction>,
@@ -174,7 +200,10 @@ pub struct Subtransaction {
     pub deleted: bool,
 }
 
-/// A scheduled transaction. Amounts are in milliunits (divide by 1000 for display).
+/// A scheduled transaction returned by dedicated scheduled transaction endpoints. Includes named
+/// fields (`account_name`, `payee_name`, `category_name`) and `subtransactions` not present in
+/// the plan export. For the plan export variant, see [`ScheduledTransactionSummary`]. Amounts are
+/// in milliunits (divide by 1000 for display).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScheduledTransaction {
     pub id: Uuid,
@@ -213,7 +242,111 @@ pub struct ScheduledSubtransaction {
     pub deleted: bool,
 }
 
-/// Used for filtering on get_transactions
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum HybridTransactionType {
+    Transaction,
+    Subtransaction,
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HybridTransaction {
+    #[serde(rename = "type")]
+    pub ttype: HybridTransactionType,
+    pub id: String,
+    pub date: NaiveDate,
+    pub amount: i64,
+    pub memo: Option<String>,
+    pub cleared: ClearedStatus,
+    pub approved: bool,
+    pub account_id: Uuid,
+    pub account_name: String,
+    pub category_name: String,
+    pub parent_transaction_id: Option<String>,
+    pub flag_color: Option<FlagColor>,
+    pub flag_name: Option<String>,
+    pub payee_id: Option<Uuid>,
+    pub payee_name: Option<String>,
+    pub category_id: Option<Uuid>,
+    pub matched_transaction_id: Option<String>,
+    pub import_id: Option<String>,
+    pub import_payee_name: Option<String>,
+    pub import_payee_name_original: Option<String>,
+    pub transfer_account_id: Option<Uuid>,
+    pub transfer_transaction_id: Option<String>,
+    pub debt_transaction_type: Option<DebtTransactionType>,
+    pub deleted: bool,
+}
+
+/// A transaction as returned in the plan export (`PlanDetails.transactions`). A reduced form of
+/// [`Transaction`] — no `account_name`, `payee_name`, `category_name`, or `subtransactions`.
+/// Amounts are in milliunits (divide by 1000 for display).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransactionSummary {
+    pub id: String,
+    pub date: NaiveDate,
+    pub amount: i64,
+    pub memo: Option<String>,
+    pub cleared: ClearedStatus,
+    pub approved: bool,
+    pub flag_color: Option<FlagColor>,
+    pub flag_name: Option<String>,
+    pub account_id: Uuid,
+    pub payee_id: Option<Uuid>,
+    pub category_id: Option<Uuid>,
+    pub matched_transaction_id: Option<String>,
+    pub import_id: Option<String>,
+    pub import_payee_name: Option<String>,
+    pub import_payee_name_original: Option<String>,
+    pub transfer_account_id: Option<Uuid>,
+    pub transfer_transaction_id: Option<String>,
+    pub debt_transaction_type: Option<DebtTransactionType>,
+    pub deleted: bool,
+}
+
+/// A scheduled transaction as returned in the plan export (`PlanDetails.scheduled_transactions`).
+/// A reduced form of [`ScheduledTransaction`] — no `account_name`, `payee_name`, `category_name`,
+/// or `subtransactions`. Amounts are in milliunits (divide by 1000 for display).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScheduledTransactionSummary {
+    pub id: Uuid,
+    pub date_first: NaiveDate,
+    pub date_next: NaiveDate,
+    pub frequency: Frequency,
+    pub amount: i64,
+    pub memo: Option<String>,
+    pub flag_color: Option<FlagColor>,
+    pub flag_name: Option<String>,
+    pub account_id: Uuid,
+    pub payee_id: Option<Uuid>,
+    pub category_id: Option<Uuid>,
+    pub transfer_account_id: Option<Uuid>,
+    pub deleted: bool,
+}
+
+/// The type of a transaction on a loan or debt account. Present on transactions associated with
+/// debt tracking categories.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
+pub enum DebtTransactionType {
+    Payment,
+    Refund,
+    Fee,
+    Interest,
+    Escrow,
+    BalanceAdjustment,
+    Credit,
+    Charge,
+    #[serde(other)]
+    Other,
+}
+
+/// Filter to apply when fetching transactions. Pass to `.transaction_type()` on a
+/// [`GetTransactionsBuilder`] to limit results to uncategorized or unapproved transactions.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TransactionType {
     Uncategorized,
@@ -233,10 +366,70 @@ impl std::fmt::Display for TransactionType {
 enum TransactionScope {
     All,
     ByAccount(Uuid),
-    ByCategory(Uuid),
-    ByPayee(Uuid),
     ByMonth(NaiveDate),
 }
+
+#[derive(Debug, Clone)]
+enum HybridTransactionScope {
+    ByCategory(Uuid),
+    ByPayee(Uuid),
+}
+
+#[derive(Debug, Clone)]
+pub struct GetHybridTransactionsBuilder<'a> {
+    client: &'a Client,
+    scope: HybridTransactionScope,
+    plan_id: PlanId,
+    since_date: Option<NaiveDate>,
+    transaction_type: Option<TransactionType>,
+    last_knowledge_of_server: Option<i64>,
+}
+
+impl<'a> GetHybridTransactionsBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+        self.last_knowledge_of_server = Some(sk);
+        self
+    }
+
+    pub fn since_date(mut self, since_date: NaiveDate) -> Self {
+        self.since_date = Some(since_date);
+        self
+    }
+
+    pub fn transaction_type(mut self, tx_type: TransactionType) -> Self {
+        self.transaction_type = Some(tx_type);
+        self
+    }
+
+    /// Sends the request. Returns transactions and server knowledge for use in subsequent delta requests.
+    pub async fn send(self) -> Result<(Vec<HybridTransaction>, i64), Error> {
+        let date_str = self.since_date.map(|d| d.to_string());
+        let type_str = self.transaction_type.map(|t| t.to_string());
+        let sk_str = self.last_knowledge_of_server.map(|sk| sk.to_string());
+
+        let mut params: Vec<(&str, &str)> = Vec::new();
+        if let Some(ref s) = date_str {
+            params.push(("since_date", s));
+        }
+        if let Some(ref t) = type_str {
+            params.push(("type", t));
+        }
+        if let Some(ref s) = sk_str {
+            params.push(("last_knowledge_of_server", s));
+        }
+        let url = match self.scope {
+            HybridTransactionScope::ByCategory(id) => {
+                format!("plans/{}/categories/{}/transactions", self.plan_id, id)
+            }
+            HybridTransactionScope::ByPayee(id) => {
+                format!("plans/{}/payees/{}/transactions", self.plan_id, id)
+            }
+        };
+        let result: HybridTransactionsDataEnvelope = self.client.get(&url, Some(&params)).await?;
+        Ok((result.data.transactions, result.data.server_knowledge))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GetTransactionsBuilder<'a> {
     client: &'a Client,
@@ -283,12 +476,6 @@ impl<'a> GetTransactionsBuilder<'a> {
             TransactionScope::All => format!("plans/{}/transactions", self.plan_id),
             TransactionScope::ByAccount(id) => {
                 format!("plans/{}/accounts/{}/transactions", self.plan_id, id)
-            }
-            TransactionScope::ByCategory(id) => {
-                format!("plans/{}/categories/{}/transactions", self.plan_id, id)
-            }
-            TransactionScope::ByPayee(id) => {
-                format!("plans/{}/payees/{}/transactions", self.plan_id, id)
             }
             TransactionScope::ByMonth(month) => {
                 format!("plans/{}/months/{}/transactions", self.plan_id, month)
@@ -370,10 +557,10 @@ impl Client {
         &self,
         plan_id: PlanId,
         category_id: Uuid,
-    ) -> GetTransactionsBuilder<'_> {
-        GetTransactionsBuilder {
+    ) -> GetHybridTransactionsBuilder<'_> {
+        GetHybridTransactionsBuilder {
             client: self,
-            scope: TransactionScope::ByCategory(category_id),
+            scope: HybridTransactionScope::ByCategory(category_id),
             plan_id,
             since_date: None,
             transaction_type: None,
@@ -386,10 +573,10 @@ impl Client {
         &self,
         plan_id: PlanId,
         payee_id: Uuid,
-    ) -> GetTransactionsBuilder<'_> {
-        GetTransactionsBuilder {
+    ) -> GetHybridTransactionsBuilder<'_> {
+        GetHybridTransactionsBuilder {
             client: self,
-            scope: TransactionScope::ByPayee(payee_id),
+            scope: HybridTransactionScope::ByPayee(payee_id),
             plan_id,
             since_date: None,
             transaction_type: None,
@@ -488,7 +675,7 @@ struct ImportTransactionsDataEnvelope {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ImportTransactionsData {
-    transaction_ids: Vec<Uuid>,
+    transaction_ids: Vec<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -510,7 +697,7 @@ impl Client {
     /// Imports available transactions on all linked accounts for the given
     /// plan. The response for this endpoint contains the transaction
     /// ids that have been imported.
-    pub async fn import_transactions(&self, plan_id: PlanId) -> Result<Vec<Uuid>, Error> {
+    pub async fn import_transactions(&self, plan_id: PlanId) -> Result<Vec<String>, Error> {
         let result: ImportTransactionsDataEnvelope = self
             .post(
                 &format!("plans/{}/transactions/import", plan_id),
@@ -593,7 +780,7 @@ pub struct ExistingTransaction {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SaveTransactionWithIdOrImportId {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Uuid>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub import_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -812,16 +999,20 @@ struct ScheduledTransactionWrapper {
 mod tests {
     use super::*;
     use crate::ynab::testutil::{
-        TEST_ID_1, TEST_ID_3, TEST_ID_4, error_body, new_test_client,
+        TEST_ID_1, TEST_ID_3, TEST_ID_4, error_body, hybrid_transaction_fixture, new_test_client,
         scheduled_transaction_fixture, transaction_fixture,
     };
     use serde_json::json;
     use uuid::uuid;
-    use wiremock::matchers::{method, path};
+    use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, ResponseTemplate};
 
     fn transactions_list_fixture() -> serde_json::Value {
         json!({ "data": { "transactions": [transaction_fixture()], "server_knowledge": 10 } })
+    }
+
+    fn hybrid_transactions_list_fixture() -> serde_json::Value {
+        json!({ "data": { "transactions": [hybrid_transaction_fixture()], "server_knowledge": 10 } })
     }
 
     fn transaction_single_fixture() -> serde_json::Value {
@@ -926,7 +1117,9 @@ mod tests {
                 "/plans/{}/categories/{}/transactions",
                 TEST_ID_1, TEST_ID_1
             )))
-            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(hybrid_transactions_list_fixture()),
+            )
             .expect(1)
             .mount(&server)
             .await;
@@ -946,7 +1139,9 @@ mod tests {
                 "/plans/{}/payees/{}/transactions",
                 TEST_ID_1, TEST_ID_3
             )))
-            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(hybrid_transactions_list_fixture()),
+            )
             .expect(1)
             .mount(&server)
             .await;
@@ -973,6 +1168,27 @@ mod tests {
             .await;
         let (txs, _) = client
             .get_transactions_by_month(PlanId::Id(uuid!(TEST_ID_1)), month)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(txs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn get_transactions_sends_filter_query_params() {
+        let (client, server) = new_test_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/plans/{}/transactions", TEST_ID_1)))
+            .and(query_param("since_date", "2024-01-01"))
+            .and(query_param("type", "unapproved"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(transactions_list_fixture()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (txs, _) = client
+            .get_transactions(PlanId::Id(uuid!(TEST_ID_1)))
+            .since_date(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
+            .transaction_type(TransactionType::Unapproved)
             .send()
             .await
             .unwrap();
@@ -1093,7 +1309,7 @@ mod tests {
             .update_transactions(
                 PlanId::Id(uuid!(TEST_ID_1)),
                 vec![SaveTransactionWithIdOrImportId {
-                    id: Some(Uuid::from_bytes([0; 16])),
+                    id: Some(String::new()),
                     memo: Some("updated".to_string()),
                     import_id: None,
                     account_id: None,

@@ -25,7 +25,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         println!(
             "{:<36}  {:<30}  {}",
-            plan.id, name, plan.currency_format.iso_code
+            plan.id,
+            name,
+            plan.currency_format
+                .as_ref()
+                .map(|cf| cf.iso_code.as_str())
+                .unwrap_or("")
         );
     }
 

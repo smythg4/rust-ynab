@@ -549,8 +549,9 @@ impl IntoDataFrame for Vec<PayeeLocation> {
     }
 }
 
-/// `DateFormat` and `CurrencyFormat` are flattened into individual columns prefixed with
-/// `date_format` and `currency_`. `accounts` is dropped — an `account_count` column is included.
+/// `DateFormat` and `CurrencyFormat` are flattened into individual, nullable columns prefixed
+/// with `date_format` and `currency_` (both are `Option` on `Plan` — YNAB may not have a format
+/// available for a plan). `accounts` is dropped — an `account_count` column is included.
 /// `first_month` and `last_month` are `Date` columns. `last_modified_on` is `Datetime(Milliseconds)`.
 impl IntoDataFrame for Vec<Plan> {
     fn into_dataframe(self) -> DataFrame {
@@ -577,15 +578,29 @@ impl IntoDataFrame for Vec<Plan> {
             last_modified_on.push(p.last_modified_on.timestamp_millis());
             first_month.push((p.first_month - epoch).num_days() as i32);
             last_month.push((p.last_month - epoch).num_days() as i32);
-            date_format.push(p.date_format.format);
-            currency_iso_code.push(p.currency_format.iso_code);
-            currency_example_format.push(p.currency_format.example_format);
-            currency_decimal_digits.push(p.currency_format.decimal_digits as i32);
-            currency_decimal_separator.push(p.currency_format.decimal_separator.to_string());
-            currency_symbol_first.push(p.currency_format.symbol_first);
-            currency_group_separator.push(p.currency_format.group_separator);
-            currency_symbol.push(p.currency_format.currency_symbol);
-            currency_display_symbol.push(p.currency_format.display_symbol);
+            date_format.push(p.date_format.map(|d| d.format));
+            match p.currency_format {
+                Some(cf) => {
+                    currency_iso_code.push(Some(cf.iso_code));
+                    currency_example_format.push(Some(cf.example_format));
+                    currency_decimal_digits.push(Some(cf.decimal_digits as i32));
+                    currency_decimal_separator.push(Some(cf.decimal_separator));
+                    currency_symbol_first.push(Some(cf.symbol_first));
+                    currency_group_separator.push(Some(cf.group_separator));
+                    currency_symbol.push(Some(cf.currency_symbol));
+                    currency_display_symbol.push(Some(cf.display_symbol));
+                }
+                None => {
+                    currency_iso_code.push(None);
+                    currency_example_format.push(None);
+                    currency_decimal_digits.push(None);
+                    currency_decimal_separator.push(None);
+                    currency_symbol_first.push(None);
+                    currency_group_separator.push(None);
+                    currency_symbol.push(None);
+                    currency_display_symbol.push(None);
+                }
+            }
             account_count.push(p.accounts.len() as u32);
         }
         let last_modified_on = Series::new("last_modified_on".into(), last_modified_on)

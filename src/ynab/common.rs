@@ -10,7 +10,7 @@ pub struct CurrencyFormat {
     pub iso_code: String,
     pub example_format: String,
     pub decimal_digits: usize,
-    pub decimal_separator: char,
+    pub decimal_separator: String,
     pub symbol_first: bool,
     pub group_separator: String,
     pub currency_symbol: String,

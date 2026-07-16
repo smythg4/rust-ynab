@@ -84,6 +84,7 @@ pub struct Category {
 
 /// The type of savings or spending goal assigned to a category.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum GoalType {
     #[serde(rename = "TB")]
     TargetBalance, // "TB"
@@ -331,6 +332,34 @@ mod tests {
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, ResponseTemplate};
+
+    #[tokio::test]
+    async fn update_category_for_month_succeeds() {
+        let (client, server) = new_test_client().await;
+        let month = chrono::NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        let fixture = category_fixture();
+        let envelope = json!({ "data": { "category": fixture, "server_knowledge": 5 } });
+        Mock::given(method("PATCH"))
+            .and(path(format!(
+                "/plans/{}/months/{}/categories/{}",
+                TEST_ID_1, month, TEST_ID_1
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(envelope))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (category, sk) = client
+            .update_category_for_month(
+                PlanId::Id(TEST_ID_1.parse().unwrap()),
+                month,
+                TEST_ID_1.parse().unwrap(),
+                SaveMonthCategory { budgeted: 75000 },
+            )
+            .await
+            .unwrap();
+        assert_eq!(category.id.to_string(), TEST_ID_1);
+        assert_eq!(sk, 5);
+    }
 
     #[tokio::test]
     async fn create_category_succeeds() {

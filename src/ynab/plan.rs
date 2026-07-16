@@ -10,7 +10,9 @@ use crate::ynab::common::NO_PARAMS;
 use crate::{Category, CategoryGroup};
 use crate::{CurrencyFormat, DateFormat};
 use crate::{Payee, PayeeLocation};
-use crate::{ScheduledSubtransaction, ScheduledTransaction, Subtransaction, Transaction};
+use crate::{
+    ScheduledSubtransaction, ScheduledTransactionSummary, Subtransaction, TransactionSummary,
+};
 
 /// Identifies a plan for use in API requests.
 ///
@@ -59,8 +61,8 @@ pub struct Plan {
     pub last_modified_on: DateTime<chrono::Utc>,
     pub first_month: NaiveDate,
     pub last_month: NaiveDate,
-    pub date_format: DateFormat,
-    pub currency_format: CurrencyFormat,
+    pub date_format: Option<DateFormat>,
+    pub currency_format: Option<CurrencyFormat>,
     #[serde(default)]
     pub accounts: Vec<Account>,
 }
@@ -78,8 +80,8 @@ struct PlanSettingsData {
 /// Date and currency format settings for a plan.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanSettings {
-    pub date_format: DateFormat,
-    pub currency_format: CurrencyFormat,
+    pub date_format: Option<DateFormat>,
+    pub currency_format: Option<CurrencyFormat>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -103,9 +105,9 @@ pub struct PlanDetails {
     pub category_groups: Vec<CategoryGroup>,
     pub categories: Vec<Category>,
     pub months: Vec<Month>,
-    pub transactions: Vec<Transaction>,
+    pub transactions: Vec<TransactionSummary>,
     pub subtransactions: Vec<Subtransaction>,
-    pub scheduled_transactions: Vec<ScheduledTransaction>,
+    pub scheduled_transactions: Vec<ScheduledTransactionSummary>,
     pub scheduled_subtransactions: Vec<ScheduledSubtransaction>,
 }
 
@@ -284,7 +286,7 @@ mod tests {
             .mount(&server)
             .await;
         let settings = client.get_plan_settings(PlanId::LastUsed).await.unwrap();
-        assert_eq!(settings.currency_format.iso_code, "USD");
+        assert_eq!(settings.currency_format.unwrap().iso_code, "USD");
     }
 
     #[tokio::test]

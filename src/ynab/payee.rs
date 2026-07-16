@@ -106,11 +106,11 @@ impl Client {
         }
     }
     /// Returns a single payee.
-    pub async fn get_payee(&self, plan_id: PlanId, payee_id: Uuid) -> Result<Payee, Error> {
+    pub async fn get_payee(&self, plan_id: PlanId, payee_id: Uuid) -> Result<(Payee, i64), Error> {
         let result: PayeeDataEnvelope = self
             .get(&format!("plans/{}/payees/{}", plan_id, payee_id), NO_PARAMS)
             .await?;
-        Ok(result.data.payee)
+        Ok((result.data.payee, result.data.server_knowledge))
     }
 
     /// Returns all payee locations.
@@ -265,7 +265,7 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let payee = client
+        let (payee, _) = client
             .get_payee(PlanId::Id(uuid!(TEST_ID_1)), uuid!(TEST_ID_3))
             .await
             .unwrap();

@@ -1,5 +1,6 @@
 use crate::ynab::errors::{Error, ErrorResponse};
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
+use reqwest::RequestBuilder;
 use secrecy::ExposeSecret;
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -8,11 +9,12 @@ use std::time::Duration;
 #[derive(Debug)]
 /// Client is the YNAB API client. Use Client::new() to create one.
 pub struct Client {
-    base_url: reqwest::Url,
-    http_client: reqwest::Client,
-    limiter: Option<Arc<DefaultDirectRateLimiter>>,
-    api_key: secrecy::SecretBox<String>,
-    timeout: Option<Duration>,
+    pub(crate) base_url: reqwest::Url,
+    pub(crate) http_client: reqwest::Client,
+    pub(crate) limiter: Option<Arc<DefaultDirectRateLimiter>>,
+    #[allow(dead_code)]
+    api_key: secrecy::SecretBox<String>, // in case we need to use this later on
+    pub(crate) timeout: Option<Duration>,
 }
 
 impl Client {
@@ -29,7 +31,7 @@ impl Client {
     /// ```
     pub fn new(api_key: impl Into<String>) -> Result<Self, Error> {
         let api_key = secrecy::SecretBox::new(Box::new(api_key.into()));
-        let http_client = Self::build_http_client(api_key.expose_secret(), None)?;
+        let http_client = Self::build_http_client(api_key.expose_secret())?;
         Ok(Self {
             base_url: reqwest::Url::parse("https://api.ynab.com/v1")
                 .expect("hardcoded base URL is always valid"),
@@ -40,10 +42,7 @@ impl Client {
         })
     }
 
-    fn build_http_client(
-        api_key: &str,
-        timeout: Option<Duration>,
-    ) -> Result<reqwest::Client, Error> {
+    fn build_http_client(api_key: &str) -> Result<reqwest::Client, Error> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::AUTHORIZATION,
@@ -51,10 +50,7 @@ impl Client {
                 .parse()
                 .expect("api key must be valid ASCII"),
         );
-        let mut builder = reqwest::Client::builder().default_headers(headers);
-        if let Some(t) = timeout {
-            builder = builder.timeout(t);
-        }
+        let builder = reqwest::Client::builder().default_headers(headers);
         builder.build().map_err(Into::into)
     }
 
@@ -72,7 +68,6 @@ impl Client {
     /// # Ok(()) }
     /// ```
     pub fn with_timeout(mut self, timeout: Duration) -> Result<Self, Error> {
-        self.http_client = Self::build_http_client(self.api_key.expose_secret(), Some(timeout))?;
         self.timeout = Some(timeout);
         Ok(self)
     }
@@ -137,127 +132,108 @@ impl Client {
         Ok(self)
     }
 
+    pub(crate) fn make_url(&self, endpoint: &str) -> reqwest::Url {
+        let mut url = self.base_url.clone();
+        url.path_segments_mut()
+            .expect("base URL must be a valid base")
+            .extend(endpoint.split('/').filter(|s| !s.is_empty()));
+        url
+    }
+
+    // shared: rate-limit wait + URL build + method selection
+    async fn prepare(&self, method: reqwest::Method, endpoint: &str) -> RequestBuilder {
+        if let Some(limiter) = &self.limiter {
+            let start = std::time::Instant::now();
+            limiter.until_ready().await;
+            tracing::debug!(
+                waited_ms = start.elapsed().as_millis() as u64,
+                "rate limiter delayed request"
+            );
+        }
+        let url = self.make_url(endpoint);
+        self.http_client.request(method, url)
+    }
+
+    // shared: timeout + send + status check + error decode + body decode
+    async fn send_json<T: serde::de::DeserializeOwned>(
+        &self,
+        mut builder: RequestBuilder,
+    ) -> Result<T, Error> {
+        if let Some(t) = self.timeout {
+            builder = builder.timeout(t);
+        }
+        let start = std::time::Instant::now();
+        let res = builder.send().await?;
+        let status = res.status();
+        let elapsed_ms = start.elapsed().as_millis() as u64;
+
+        if !status.is_success() {
+            let err_body: ErrorResponse = res.json().await?;
+            tracing::warn!(status = status.as_u16(), elapsed_ms, error = %err_body.error, "YNAB API error");
+            return Err(Error::new_api_error(status, err_body.error));
+        }
+        tracing::debug!(status = status.as_u16(), elapsed_ms, "request succeeded");
+        res.json().await.map_err(Into::into)
+    }
+
+    #[tracing::instrument(skip(self, params), fields(endpoint = %endpoint))]
     pub(crate) async fn get<T: serde::de::DeserializeOwned, Q: serde::ser::Serialize + ?Sized>(
         &self,
         endpoint: &str,
         params: Option<&Q>,
     ) -> Result<T, Error> {
-        if let Some(limiter) = &self.limiter {
-            limiter.until_ready().await;
-        }
-
-        let mut url = self.base_url.clone();
-        url.path_segments_mut()
-            .expect("base URL must be a valid base")
-            .extend(endpoint.split('/'));
-
-        let mut builder = self.http_client.get(url);
+        let mut builder = self.prepare(reqwest::Method::GET, endpoint).await;
         if let Some(p) = params {
             builder = builder.query(p);
         }
-        let res = builder.send().await?;
-        let status = res.status();
-
-        if !status.is_success() {
-            let err_body: ErrorResponse = res.json().await?;
-            return Err(Error::new_api_error(status, err_body.error));
-        }
-
-        res.json().await.map_err(Into::into)
+        self.send_json(builder).await
     }
 
+    #[tracing::instrument(skip(self, body), fields(endpoint = %endpoint))]
     pub(crate) async fn post<T: serde::de::DeserializeOwned, B: serde::ser::Serialize>(
         &self,
         endpoint: &str,
         body: B,
     ) -> Result<T, Error> {
-        if let Some(limiter) = &self.limiter {
-            limiter.until_ready().await;
-        }
-        let mut url = self.base_url.clone();
-        url.path_segments_mut()
-            .expect("base URL must be a valid base")
-            .extend(endpoint.split('/'));
-
-        let res = self.http_client.post(url).json(&body).send().await?;
-        let status = res.status();
-
-        if !status.is_success() {
-            let err_body: ErrorResponse = res.json().await?;
-            return Err(Error::new_api_error(status, err_body.error));
-        }
-
-        res.json().await.map_err(Into::into)
+        let builder = self
+            .prepare(reqwest::Method::POST, endpoint)
+            .await
+            .json(&body);
+        self.send_json(builder).await
     }
 
+    #[tracing::instrument(skip(self, body), fields(endpoint = %endpoint))]
     pub(crate) async fn patch<T: serde::de::DeserializeOwned, B: serde::ser::Serialize>(
         &self,
         endpoint: &str,
         body: B,
     ) -> Result<T, Error> {
-        if let Some(limiter) = &self.limiter {
-            limiter.until_ready().await;
-        }
-        let mut url = self.base_url.clone();
-        url.path_segments_mut()
-            .expect("base URL must be a valid base")
-            .extend(endpoint.split('/'));
-
-        let res = self.http_client.patch(url).json(&body).send().await?;
-        let status = res.status();
-
-        if !status.is_success() {
-            let err_body: ErrorResponse = res.json().await?;
-            return Err(Error::new_api_error(status, err_body.error));
-        }
-
-        res.json().await.map_err(Into::into)
+        let builder = self
+            .prepare(reqwest::Method::PATCH, endpoint)
+            .await
+            .json(&body);
+        self.send_json(builder).await
     }
 
+    #[tracing::instrument(skip(self, body), fields(endpoint = %endpoint))]
     pub(crate) async fn put<T: serde::de::DeserializeOwned, B: serde::ser::Serialize>(
         &self,
         endpoint: &str,
         body: B,
     ) -> Result<T, Error> {
-        if let Some(limiter) = &self.limiter {
-            limiter.until_ready().await;
-        }
-        let mut url = self.base_url.clone();
-        url.path_segments_mut()
-            .expect("base URL must be a valid base")
-            .extend(endpoint.split('/'));
-
-        let res = self.http_client.put(url).json(&body).send().await?;
-        let status = res.status();
-
-        if !status.is_success() {
-            let err_body: ErrorResponse = res.json().await?;
-            return Err(Error::new_api_error(status, err_body.error));
-        }
-
-        res.json().await.map_err(Into::into)
+        let builder = self
+            .prepare(reqwest::Method::PUT, endpoint)
+            .await
+            .json(&body);
+        self.send_json(builder).await
     }
 
+    #[tracing::instrument(skip(self), fields(endpoint = %endpoint))]
     pub(crate) async fn delete<T: serde::de::DeserializeOwned>(
         &self,
         endpoint: &str,
     ) -> Result<T, Error> {
-        if let Some(limiter) = &self.limiter {
-            limiter.until_ready().await;
-        }
-        let mut url = self.base_url.clone();
-        url.path_segments_mut()
-            .expect("base URL must be a valid base")
-            .extend(endpoint.split('/'));
-
-        let res = self.http_client.delete(url).send().await?;
-        let status = res.status();
-
-        if !status.is_success() {
-            let err_body: ErrorResponse = res.json().await?;
-            return Err(Error::new_api_error(status, err_body.error));
-        }
-
-        res.json().await.map_err(Into::into)
+        let builder = self.prepare(reqwest::Method::DELETE, endpoint).await;
+        self.send_json(builder).await
     }
 }

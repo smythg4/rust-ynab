@@ -21,7 +21,7 @@ mod ynab;
 #[cfg(feature = "polars")]
 pub use ynab::polars::IntoDataFrame;
 
-pub use ynab::account::{Account, AccountType, SaveAccount};
+pub use ynab::account::{Account, AccountType, SaveAccount, SaveAccountType};
 pub use ynab::category::{
     Category, CategoryGroup, GoalType, NewCategory, SaveCategory, SaveCategoryGroup,
     SaveMonthCategory,
@@ -32,17 +32,18 @@ pub use ynab::errors::{ApiError, Error};
 pub use ynab::month::Month;
 pub use ynab::movements::{MoneyMovement, MoneyMovementGroup};
 pub use ynab::payee::{Payee, PayeeLocation, PostPayee, SavePayee};
-pub use ynab::plan::{Plan, PlanId, PlanSettings};
+pub use ynab::plan::{Plan, PlanDetails, PlanId, PlanSettings};
 pub use ynab::transaction::{
-    ClearedStatus, ExistingTransaction, FlagColor, Frequency, NewTransaction,
-    SaveScheduledTransaction, SaveSubTransaction, SaveTransactionResponse,
-    SaveTransactionWithIdOrImportId, SaveTransactionsResponse, ScheduledSubtransaction,
-    ScheduledTransaction, Subtransaction, Transaction, TransactionType,
+    ClearedStatus, ExistingTransaction, FlagColor, Frequency, GetHybridTransactionsBuilder,
+    HybridTransaction, HybridTransactionType, NewTransaction, SaveScheduledTransaction,
+    SaveSubTransaction, SaveTransactionResponse, SaveTransactionWithIdOrImportId,
+    SaveTransactionsResponse, ScheduledSubtransaction, ScheduledTransaction,
+    ScheduledTransactionSummary, Subtransaction, Transaction, TransactionSummary, TransactionType,
 };
 pub use ynab::user::User;
 
 /// Converts a YNAB milliunit amount to a dollar amount.
-///
+/// For display only. For arithmetic use milliunits.
 /// # Examples
 ///
 /// ```

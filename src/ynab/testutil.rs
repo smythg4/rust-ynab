@@ -125,6 +125,33 @@ pub fn transaction_fixture() -> Value {
     })
 }
 
+pub fn hybrid_transaction_fixture() -> Value {
+    json!({
+        "type": "transaction",
+        "parent_transaction_id": null,
+        "id": TEST_ID_1,
+        "date": "2024-01-15",
+        "amount": -50000,
+        "memo": null,
+        "cleared": "cleared",
+        "approved": true,
+        "flag_color": null,
+        "flag_name": null,
+        "account_id": TEST_ID_1,
+        "payee_id": TEST_ID_3,
+        "account_name": "Checking",
+        "payee_name": "Amazon",
+        "category_id": TEST_ID_1,
+        "category_name": "Groceries",
+        "matched_transaction_id": null,
+        "import_id": null,
+        "import_payee_name": null,
+        "import_payee_name_original": null,
+        "deleted": false,
+        "subtransactions": []
+    })
+}
+
 pub fn subtransaction_fixture() -> Value {
     json!({
         "id": "subtransaction-1",
@@ -157,7 +184,8 @@ pub fn scheduled_transaction_fixture() -> Value {
         "payee_name": "Amazon",
         "category_name": "Groceries",
         "subtransactions": [],
-        "transfer_account_id": null
+        "transfer_account_id": null,
+        "deleted": false,
     })
 }
 

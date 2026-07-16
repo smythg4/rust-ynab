@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "0.4.11"
+rust-ynab = "0.4.12"
 ```
 
 ## Usage
@@ -48,7 +48,7 @@ Enable the `polars` feature to convert any YNAB collection into a Polars [`DataF
 
 ```toml
 [dependencies]
-rust-ynab = { version = "0.4.9", features = ["polars"] }
+rust-ynab = { version = "0.4.12", features = ["polars"] }
 polars = { version = "...", features = ["lazy"] }
 ```
 
@@ -119,7 +119,8 @@ This works because the underlying `reqwest` futures are cancel-safe. For per-req
 The [YNAB API](https://api.ynab.com/#rate-limiting) allows 200 requests per hour. `with_rate_limiter` enables a token bucket limiter that automatically spaces requests to stay within that limit:
 
 ```rust
-let client = Client::new(&std::env::var("YNAB_TOKEN")?)?.with_rate_limiter(200, Some(10))?;
+let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
+    .with_rate_limiter(200, Some(10))?;
 ```
 
 The first argument is the request budget per hour; the second is the optional burst size — the number of requests that can be made immediately before throttling begins. To keep total consumption within YNAB's limit, the sustained rate is reduced by the burst size: `with_rate_limiter(200, Some(10))` allows 10 immediate requests, then throttles to 190 per hour. Calls block until a token is available rather than returning an error, so no retry logic is needed on the caller's side.
@@ -133,7 +134,8 @@ The default request timeout is determined by `reqwest`. Use `with_timeout` to ov
 ```rust
 use std::time::Duration;
 
-let client = Client::new(&std::env::var("YNAB_TOKEN")?)?.with_timeout(Duration::from_secs(30))?;
+let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
+    .with_timeout(Duration::from_secs(30))?;
 ```
 
 Both `with_timeout` and `with_rate_limiter` return the client, so they can be chained:
@@ -143,6 +145,24 @@ let client = Client::new(&std::env::var("YNAB_TOKEN")?)?
     .with_rate_limiter(200, Some(10))?
     .with_timeout(Duration::from_secs(30))?;
 ```
+
+## Tracing
+
+Requests are instrumented with [`tracing`](https://docs.rs/tracing). The library never installs a subscriber itself — enable output by installing one in your application, e.g. [`tracing-subscriber`](https://docs.rs/tracing-subscriber):
+
+```rust
+tracing_subscriber::fmt()
+    .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+    .init();
+```
+
+Then set `RUST_LOG` to see it:
+
+```
+RUST_LOG=rust_ynab=debug cargo run --example list_plans
+```
+
+Each `get`/`post`/`put`/`patch`/`delete` call opens a span tagged with the request `endpoint`, with debug-level events for rate-limiter waits and request outcomes, and a warn-level event for API errors. See [`examples/trace_demo.rs`](examples/trace_demo.rs) for a full runnable demonstration against a mock server — no `YNAB_TOKEN` required.
 
 ## Error Handling
 
@@ -173,6 +193,7 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 - [Delete transaction](examples/delete_transaction.rs)
 - [Split transaction](examples/split_transaction.rs)
 - [Delta request](examples/delta_request.rs)
+- [Tracing demo](examples/trace_demo.rs)
 
 ## API Coverage
 
