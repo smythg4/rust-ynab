@@ -2,13 +2,13 @@
 [![Crates.io](https://img.shields.io/crates/v/rust-ynab)](https://crates.io/crates/rust-ynab)
 [![docs.rs](https://docs.rs/rust-ynab/badge.svg)](https://docs.rs/rust-ynab)
 
-A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to all published YNAB API endpoints. Requires a YNAB account and a [Personal Access Token](https://app.ynab.com/settings/developer).
+A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to all published YNAB API endpoints. Requires a YNAB account and either a [Personal Access Token](https://app.ynab.com/settings/developer) or an OAuth application.
 
 ## Installation
 
 ```toml
 [dependencies]
-rust-ynab = "0.5.0"
+rust-ynab = "0.5.5"
 ```
 
 ## Usage
@@ -20,6 +20,48 @@ All API access requires a Personal Access Token. Pass it to `Client::new`:
 ```rust
 let client = Client::new(&std::env::var("YNAB_TOKEN")?)?;
 ```
+
+### OAuth
+
+For applications acting on behalf of other users, `OAuthConfig` supports the Authorization Code + PKCE grant (YNAB's other grant, Implicit, returns the token in a URL fragment, which a Rust backend has no way to receive). Enable it with the `oauth` feature:
+
+> **NOTE**: Please thoroughly exercise this feature. If you run into problems, please open a GitHub issue.
+
+```toml
+[dependencies]
+rust-ynab = { version = "0.5.5", features = ["oauth"] }
+```
+
+```rust
+use rust_ynab::{Client, OAuthConfig};
+
+let config = OAuthConfig::new(
+    client_id,
+    client_secret,
+    "https://app.ynab.com/oauth/authorize",
+    "https://app.ynab.com/oauth/token",
+    redirect_uri,
+)?;
+
+// Redirect the user to `auth_url`, and hold onto `verifier` and `csrf_token` until the callback arrives.
+let (auth_url, verifier, csrf_token) = config.authorization_url();
+
+// ... once your redirect handler receives the full callback URL. `verify_and_extract_code`
+// checks `state` against `csrf_token` for you, and only returns `code` if it matches — CSRF
+// verification isn't a step you can forget, since there's no other way to get `code` out.
+let code = OAuthConfig::verify_and_extract_code(redirect_url, &csrf_token)?;
+let tokens = config.exchange_code(code, verifier).await?;
+let client = Client::new(tokens.access_token)?;
+```
+
+`tokens.refresh_token`/`tokens.expires_at` are both `Option` — not every response includes them. `OAuthTokens` implements `Serialize`/`Deserialize`, so you can persist it between runs; the library never does this itself. When the access token expires, refresh explicitly and build a new `Client` — there's no automatic in-`Client` refresh:
+
+```rust
+let tokens = config.refresh_token(stored_refresh_token).await?;
+let client = Client::new(tokens.access_token)?;
+```
+
+An OAuth access token is just a bearer token like a PAT, so `Client` itself needs no OAuth-specific configuration at all.
 
 ### Quick Start
 
@@ -48,7 +90,7 @@ Enable the `polars` feature to convert any YNAB collection into a Polars [`DataF
 
 ```toml
 [dependencies]
-rust-ynab = { version = "0.5.0", features = ["polars"] }
+rust-ynab = { version = "0.5.5", features = ["polars"] }
 polars = { version = "...", features = ["lazy"] }
 ```
 
@@ -60,7 +102,7 @@ let df = transactions.into_dataframe();
 println!("{df}");
 ```
 
-All major YNAB types are supported: `Account`, `Transaction`, `Subtransaction`, `Category`, `CategoryGroup`, `Month`, `Payee`, `PayeeLocation`, `Plan`, `ScheduledTransaction`, `ScheduledSubtransaction`, `MoneyMovement`, and `MoneyMovementGroup`.
+All major YNAB types are supported: `Account`, `Transaction`, `HybridTransaction`, `TransactionSummary`, `Subtransaction`, `Category`, `CategoryGroup`, `Month`, `Payee`, `PayeeLocation`, `Plan`, `ScheduledTransaction`, `ScheduledTransactionSummary`, `ScheduledSubtransaction`, `MoneyMovement`, and `MoneyMovementGroup`.
 
 With Polars' lazy API you can filter, group, and join across types:
 
@@ -79,6 +121,8 @@ let result = txs.into_dataframe()
 ```
 
 Nested collections (e.g. `Transaction::subtransactions`) are replaced with a `*_count` column. Use the corresponding type's `into_dataframe()` and join on the shared ID column to access the full data.
+
+`Account`'s three date-keyed debt maps (`debt_interest_rates`, `debt_minimum_payments`, `debt_escrow_amounts`) don't fit that pattern either — a variable number of dated entries per account isn't a fixed column. `account_debt_history(&accounts)` flattens them into a long-format table (`account_id`, `kind`, `month`, `amount`), joinable on `account_id`.
 
 ## Builder Pattern
 

@@ -117,7 +117,7 @@ impl<'a> GetAccountsBuilder<'a> {
 }
 
 impl Client {
-    /// Returns a builder for fetching all accounts. Chain .with_server_knowledge() for a delta request.
+    /// Returns a builder for fetching all accounts. Chain `.with_server_knowledge()` for a delta request.
     pub fn get_accounts(&self, plan_id: PlanId) -> GetAccountsBuilder<'_> {
         GetAccountsBuilder {
             client: self,

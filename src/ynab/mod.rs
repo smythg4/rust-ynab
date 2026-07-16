@@ -10,6 +10,9 @@ pub mod plan;
 pub mod transaction;
 pub mod user;
 
+#[cfg(feature = "oauth")]
+pub mod oauth;
+
 #[cfg(feature = "polars")]
 pub mod polars;
 

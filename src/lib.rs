@@ -19,7 +19,10 @@
 mod ynab;
 
 #[cfg(feature = "polars")]
-pub use ynab::polars::IntoDataFrame;
+pub use ynab::polars::{IntoDataFrame, account_debt_history};
+
+#[cfg(feature = "oauth")]
+pub use ynab::oauth::{OAuthConfig, OAuthTokens};
 
 pub use ynab::account::{Account, AccountType, SaveAccount, SaveAccountType};
 pub use ynab::category::{

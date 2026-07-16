@@ -44,6 +44,8 @@ pub enum Error {
     ParseError(#[from] url::ParseError),
     #[error("invalid rate limit configuration: {0}")]
     InvalidRateLimit(String),
+    #[error("OAuth Error: {0}")]
+    OAuth(String),
 }
 
 impl Error {
@@ -77,9 +79,11 @@ mod tests {
         }
     }
 
+    type StatusCase = (StatusCode, fn(&Error) -> bool);
+
     #[test]
     fn maps_status_codes_to_error_variants() {
-        let cases: &[(StatusCode, fn(&Error) -> bool)] = &[
+        let cases: &[StatusCase] = &[
             (StatusCode::BAD_REQUEST, |e| {
                 matches!(e, Error::BadRequest(_))
             }),
