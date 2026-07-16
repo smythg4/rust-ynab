@@ -6,7 +6,7 @@ use crate::Account;
 use crate::Client;
 use crate::Error;
 use crate::Month;
-use crate::ynab::common::NO_PARAMS;
+use crate::ynab::common::{NO_PARAMS, ServerKnowledge};
 use crate::{Category, CategoryGroup};
 use crate::{CurrencyFormat, DateFormat};
 use crate::{Payee, PayeeLocation};
@@ -92,7 +92,7 @@ struct PlanDetailsDataEnvelope {
 #[derive(Debug, Serialize, Deserialize)]
 struct PlanDetailsData {
     plan: PlanDetails,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 /// A single plan with all related entities. This resource is effectively a full plan export.
@@ -146,19 +146,19 @@ impl<'a> GetPlansBuilder<'a> {
 pub struct GetPlanBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetPlanBuilder<'a> {
     /// Requests only changes since a previous sync. Pass the `server_knowledge` value
     /// returned by a prior call.
-    pub fn with_server_knowledge(mut self, sk: i64) -> GetPlanBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> GetPlanBuilder<'a> {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns the full plan export and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(PlanDetails, i64), Error> {
+    pub async fn send(self) -> Result<(PlanDetails, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {

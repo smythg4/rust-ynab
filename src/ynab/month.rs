@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::PlanId;
 use crate::ynab::category::Category;
 use crate::ynab::client::Client;
-use crate::ynab::common::NO_PARAMS;
+use crate::ynab::common::{NO_PARAMS, ServerKnowledge};
 use crate::ynab::errors::Error;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ struct MonthsDataEnvelope {
 #[derive(Debug, Serialize, Deserialize)]
 struct MonthsData {
     months: Vec<Month>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 /// A plan month. This is where Ready to Assign, Age of Money, and category amounts
@@ -49,17 +49,17 @@ pub struct Month {
 pub struct GetMonthsBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetMonthsBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> Self {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns months and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<Month>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<Month>, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {

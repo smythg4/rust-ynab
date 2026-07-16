@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::Client;
 use crate::Error;
 use crate::PlanId;
-use crate::ynab::common::NO_PARAMS;
+use crate::ynab::common::{NO_PARAMS, ServerKnowledge};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct AccountDataEnvelope {
@@ -26,7 +26,7 @@ struct AccountsDataEnvelope {
 #[derive(Debug, Deserialize, Serialize)]
 struct AccountsData {
     accounts: Vec<Account>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 /// The type of account.
@@ -92,17 +92,17 @@ pub struct Account {
 pub struct GetAccountsBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetAccountsBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> GetAccountsBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> GetAccountsBuilder<'a> {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns accounts and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<Account>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<Account>, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {

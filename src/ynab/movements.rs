@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::PlanId;
 use crate::ynab::client::Client;
-use crate::ynab::common::NO_PARAMS;
+use crate::ynab::common::{NO_PARAMS, ServerKnowledge};
 use crate::ynab::errors::Error;
 
 #[derive(Debug, Deserialize)]
@@ -15,7 +15,7 @@ struct MoneyMovementsDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct MoneyMovementsData {
     money_movements: Vec<MoneyMovement>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +26,7 @@ struct MoneyMovementGroupsDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct MoneyMovementGroupsData {
     money_movement_groups: Vec<MoneyMovementGroup>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 /// A movement of money between categories. Amounts are in milliunits (divide by 1000 for display).
@@ -57,17 +57,17 @@ pub struct MoneyMovementGroup {
 pub struct GetMoneyMovementsBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetMoneyMovementsBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> Self {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns money movements and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<MoneyMovement>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<MoneyMovement>, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {
@@ -85,17 +85,17 @@ impl<'a> GetMoneyMovementsBuilder<'a> {
 pub struct GetMoneyMovementGroupsBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetMoneyMovementGroupsBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> Self {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns money movement groups and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<MoneyMovementGroup>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<MoneyMovementGroup>, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {
@@ -131,7 +131,7 @@ impl Client {
         &self,
         plan_id: PlanId,
         month: NaiveDate,
-    ) -> Result<(Vec<MoneyMovement>, i64), Error> {
+    ) -> Result<(Vec<MoneyMovement>, ServerKnowledge), Error> {
         let result: MoneyMovementsDataEnvelope = self
             .get(
                 &format!("plans/{}/months/{}/money_movements", plan_id, month),
@@ -156,7 +156,7 @@ impl Client {
         &self,
         plan_id: PlanId,
         month: NaiveDate,
-    ) -> Result<(Vec<MoneyMovementGroup>, i64), Error> {
+    ) -> Result<(Vec<MoneyMovementGroup>, ServerKnowledge), Error> {
         let result: MoneyMovementGroupsDataEnvelope = self
             .get(
                 &format!("plans/{}/months/{}/money_movement_groups", plan_id, month),

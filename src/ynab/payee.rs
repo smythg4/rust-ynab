@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::PlanId;
 use crate::ynab::client::Client;
-use crate::ynab::common::NO_PARAMS;
+use crate::ynab::common::{NO_PARAMS, ServerKnowledge};
 use crate::ynab::errors::Error;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -14,7 +14,7 @@ struct PayeesDataEnvelope {
 #[derive(Debug, Deserialize, Serialize)]
 struct PayeesData {
     payees: Vec<Payee>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -25,7 +25,7 @@ struct PayeeDataEnvelope {
 #[derive(Debug, Deserialize, Serialize)]
 struct PayeeData {
     payee: Payee,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 /// A payee for a plan.
@@ -72,17 +72,17 @@ pub struct PayeeLocation {
 pub struct GetPayeesBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetPayeesBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> Self {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns payees and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<Payee>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<Payee>, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {
@@ -106,7 +106,11 @@ impl Client {
         }
     }
     /// Returns a single payee.
-    pub async fn get_payee(&self, plan_id: PlanId, payee_id: Uuid) -> Result<(Payee, i64), Error> {
+    pub async fn get_payee(
+        &self,
+        plan_id: PlanId,
+        payee_id: Uuid,
+    ) -> Result<(Payee, ServerKnowledge), Error> {
         let result: PayeeDataEnvelope = self
             .get(&format!("plans/{}/payees/{}", plan_id, payee_id), NO_PARAMS)
             .await?;
@@ -181,7 +185,7 @@ impl Client {
         &self,
         plan_id: PlanId,
         payee: PostPayee,
-    ) -> Result<(Payee, i64), Error> {
+    ) -> Result<(Payee, ServerKnowledge), Error> {
         let result: PayeeDataEnvelope = self
             .post(
                 &format!("plans/{}/payees", plan_id),
@@ -198,7 +202,7 @@ impl Client {
         plan_id: PlanId,
         payee_id: Uuid,
         payee: SavePayee,
-    ) -> Result<(Payee, i64), Error> {
+    ) -> Result<(Payee, ServerKnowledge), Error> {
         let result: PayeeDataEnvelope = self
             .patch(
                 &format!("plans/{}/payees/{}", plan_id, payee_id),

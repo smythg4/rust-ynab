@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::Client;
 use crate::Error;
 use crate::PlanId;
-use crate::ynab::common::NO_PARAMS;
+use crate::ynab::common::{NO_PARAMS, ServerKnowledge};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CategoriesDataEnvelope {
@@ -15,7 +15,7 @@ struct CategoriesDataEnvelope {
 #[derive(Debug, Serialize, Deserialize)]
 struct CategoriesData {
     category_groups: Vec<CategoryGroup>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,7 +36,7 @@ struct SaveCategoryGroupDataEnvelope {
 #[derive(Debug, Serialize, Deserialize)]
 struct CategoryGroupData {
     category_group: CategoryGroup,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 /// A group of budget categories.
@@ -104,17 +104,17 @@ pub enum GoalType {
 pub struct GetCategoriesBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetCategoriesBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> GetCategoriesBuilder<'a> {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> GetCategoriesBuilder<'a> {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns category groups (each containing their categories) and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<CategoryGroup>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<CategoryGroup>, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {
@@ -239,7 +239,7 @@ struct SaveCategoryDataEnvelope {
 #[derive(Debug, Serialize, Deserialize)]
 struct SaveCategoryData {
     category: Category,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 impl Client {
@@ -248,7 +248,7 @@ impl Client {
         &self,
         plan_id: PlanId,
         category: NewCategory,
-    ) -> Result<(Category, i64), Error> {
+    ) -> Result<(Category, ServerKnowledge), Error> {
         let result: SaveCategoryDataEnvelope = self
             .post(
                 &format!("plans/{plan_id}/categories"),
@@ -263,7 +263,7 @@ impl Client {
         &self,
         plan_id: PlanId,
         category_group: SaveCategoryGroup,
-    ) -> Result<(CategoryGroup, i64), Error> {
+    ) -> Result<(CategoryGroup, ServerKnowledge), Error> {
         let result: SaveCategoryGroupDataEnvelope = self
             .post(
                 &format!("plans/{plan_id}/category_groups"),
@@ -279,7 +279,7 @@ impl Client {
         plan_id: PlanId,
         category_id: Uuid,
         category: SaveCategory,
-    ) -> Result<(Category, i64), Error> {
+    ) -> Result<(Category, ServerKnowledge), Error> {
         let result: SaveCategoryDataEnvelope = self
             .patch(
                 &format!("plans/{plan_id}/categories/{category_id}"),
@@ -296,7 +296,7 @@ impl Client {
         month: NaiveDate,
         category_id: Uuid,
         category: SaveMonthCategory,
-    ) -> Result<(Category, i64), Error> {
+    ) -> Result<(Category, ServerKnowledge), Error> {
         let result: SaveCategoryDataEnvelope = self
             .patch(
                 &format!("plans/{plan_id}/months/{month}/categories/{category_id}"),
@@ -312,7 +312,7 @@ impl Client {
         plan_id: PlanId,
         category_group_id: Uuid,
         category_group: SaveCategoryGroup,
-    ) -> Result<(CategoryGroup, i64), Error> {
+    ) -> Result<(CategoryGroup, ServerKnowledge), Error> {
         let result: SaveCategoryGroupDataEnvelope = self
             .patch(
                 &format!("plans/{plan_id}/category_groups/{category_group_id}"),

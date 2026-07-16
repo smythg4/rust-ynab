@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::PlanId;
 use crate::ynab::client::Client;
-use crate::ynab::common::NO_PARAMS;
+use crate::ynab::common::{NO_PARAMS, ServerKnowledge};
 use crate::ynab::errors::Error;
 
 // --- Envelopes ---
@@ -18,7 +18,7 @@ struct TransactionDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct TransactionData {
     transaction: Transaction,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,7 +29,7 @@ struct TransactionsDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct TransactionsData {
     transactions: Vec<Transaction>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,7 +40,7 @@ struct HybridTransactionsDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct HybridTransactionsData {
     transactions: Vec<HybridTransaction>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,7 +61,7 @@ struct ScheduledTransactionsDataEnvelope {
 #[derive(Debug, Deserialize)]
 struct ScheduledTransactionsData {
     scheduled_transactions: Vec<ScheduledTransaction>,
-    server_knowledge: i64,
+    server_knowledge: ServerKnowledge,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,7 +82,7 @@ pub struct SaveTransactionsResponse {
 
     pub transaction_ids: Vec<String>,
     pub duplicate_import_ids: Option<Vec<String>>,
-    pub server_knowledge: i64,
+    pub server_knowledge: ServerKnowledge,
 }
 
 /// Response from creating or single updating transactions.
@@ -92,7 +92,7 @@ pub struct SaveTransactionResponse {
 
     pub transaction_ids: Vec<String>,
     pub duplicate_import_ids: Option<Vec<String>>,
-    pub server_knowledge: i64,
+    pub server_knowledge: ServerKnowledge,
 }
 
 // --- Enums ---
@@ -383,11 +383,11 @@ pub struct GetHybridTransactionsBuilder<'a> {
     plan_id: PlanId,
     since_date: Option<NaiveDate>,
     transaction_type: Option<TransactionType>,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetHybridTransactionsBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> Self {
         self.last_knowledge_of_server = Some(sk);
         self
     }
@@ -403,7 +403,7 @@ impl<'a> GetHybridTransactionsBuilder<'a> {
     }
 
     /// Sends the request. Returns transactions and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<HybridTransaction>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<HybridTransaction>, ServerKnowledge), Error> {
         let date_str = self.since_date.map(|d| d.to_string());
         let type_str = self.transaction_type.map(|t| t.to_string());
         let sk_str = self.last_knowledge_of_server.map(|sk| sk.to_string());
@@ -438,11 +438,11 @@ pub struct GetTransactionsBuilder<'a> {
     plan_id: PlanId,
     since_date: Option<NaiveDate>,
     transaction_type: Option<TransactionType>,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetTransactionsBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> Self {
         self.last_knowledge_of_server = Some(sk);
         self
     }
@@ -458,7 +458,7 @@ impl<'a> GetTransactionsBuilder<'a> {
     }
 
     /// Sends the request. Returns transactions and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<Transaction>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<Transaction>, ServerKnowledge), Error> {
         let date_str = self.since_date.map(|d| d.to_string());
         let type_str = self.transaction_type.map(|t| t.to_string());
         let sk_str = self.last_knowledge_of_server.map(|sk| sk.to_string());
@@ -527,7 +527,7 @@ impl Client {
         &self,
         plan_id: PlanId,
         transaction_id: &str,
-    ) -> Result<(Transaction, i64), Error> {
+    ) -> Result<(Transaction, ServerKnowledge), Error> {
         let result: TransactionDataEnvelope = self
             .get(
                 &format!("plans/{}/transactions/{}", plan_id, transaction_id),
@@ -606,17 +606,17 @@ impl Client {
 pub struct GetScheduledTransactionsBuilder<'a> {
     client: &'a Client,
     plan_id: PlanId,
-    last_knowledge_of_server: Option<i64>,
+    last_knowledge_of_server: Option<ServerKnowledge>,
 }
 
 impl<'a> GetScheduledTransactionsBuilder<'a> {
-    pub fn with_server_knowledge(mut self, sk: i64) -> Self {
+    pub fn with_server_knowledge(mut self, sk: ServerKnowledge) -> Self {
         self.last_knowledge_of_server = Some(sk);
         self
     }
 
     /// Sends the request. Returns scheduled transactions and server knowledge for use in subsequent delta requests.
-    pub async fn send(self) -> Result<(Vec<ScheduledTransaction>, i64), Error> {
+    pub async fn send(self) -> Result<(Vec<ScheduledTransaction>, ServerKnowledge), Error> {
         let params: Option<&[(&str, &str)]> = if let Some(sk) = self.last_knowledge_of_server {
             Some(&[("last_knowledge_of_server", &sk.to_string())])
         } else {
@@ -688,7 +688,7 @@ impl Client {
         &self,
         plan_id: PlanId,
         tx_id: &str,
-    ) -> Result<(Transaction, i64), Error> {
+    ) -> Result<(Transaction, ServerKnowledge), Error> {
         let result: TransactionDataEnvelope = self
             .delete(&format!("plans/{}/transactions/{}", plan_id, tx_id))
             .await?;
@@ -702,7 +702,7 @@ impl Client {
         plan_id: PlanId,
         tx_ids: &[&str],
         concurrency: usize,
-    ) -> Vec<Result<(Transaction, i64), Error>> {
+    ) -> Vec<Result<(Transaction, ServerKnowledge), Error>> {
         stream::iter(tx_ids)
             .map(|tid| self.delete_transaction(plan_id, tid))
             .buffered(concurrency)
@@ -921,7 +921,7 @@ impl Client {
         plan_id: PlanId,
         tx_id: &str,
         transaction: ExistingTransaction,
-    ) -> Result<(Transaction, i64), Error> {
+    ) -> Result<(Transaction, ServerKnowledge), Error> {
         let result: TransactionDataEnvelope = self
             .put(
                 &format!("plans/{}/transactions/{}", plan_id, tx_id),

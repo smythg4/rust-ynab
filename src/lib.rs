@@ -27,7 +27,7 @@ pub use ynab::category::{
     SaveMonthCategory,
 };
 pub use ynab::client::Client;
-pub use ynab::common::{CurrencyFormat, DateFormat};
+pub use ynab::common::{CurrencyFormat, DateFormat, ServerKnowledge};
 pub use ynab::errors::{ApiError, Error};
 pub use ynab::month::Month;
 pub use ynab::movements::{MoneyMovement, MoneyMovementGroup};

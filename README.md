@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "0.4.13"
+rust-ynab = "0.5.0"
 ```
 
 ## Usage
@@ -48,7 +48,7 @@ Enable the `polars` feature to convert any YNAB collection into a Polars [`DataF
 
 ```toml
 [dependencies]
-rust-ynab = { version = "0.4.13", features = ["polars"] }
+rust-ynab = { version = "0.5.0", features = ["polars"] }
 polars = { version = "...", features = ["lazy"] }
 ```
 
@@ -298,6 +298,8 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 | `get_user` | `GET /user` |
 
 † Returns server knowledge as a second return value for use with delta requests.
+
+> **Note**: As of `0.5.0`, server knowledge is returned as `ServerKnowledge` — a distinct wrapper around an `i64` — rather than a bare `i64`. This is a breaking change: the compiler will now catch a `server_knowledge` value being mixed up with an unrelated `i64` (e.g. a transaction amount), which a bare primitive couldn't. Existing code generally just needs to drop an explicit `i64` type annotation; to get the raw integer back, use `.0` or `.into()`.
 
 ‡ A client-side helper, not a distinct YNAB endpoint — deletes multiple transactions concurrently (bounded by a `concurrency` argument) via repeated calls to `delete_transaction`, returning one `Result` per input in the same order.
 
