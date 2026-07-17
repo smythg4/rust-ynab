@@ -84,46 +84,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Polars Integration
-
-Enable the `polars` feature to convert any YNAB collection into a Polars [`DataFrame`](https://docs.rs/polars/latest/polars/frame/struct.DataFrame.html):
-
-```toml
-[dependencies]
-rust-ynab = { version = "0.5.5", features = ["polars"] }
-polars = { version = "...", features = ["lazy"] }
-```
-
-```rust
-use rust_ynab::IntoDataFrame;
-
-let (transactions, _) = client.get_transactions(PlanId::LastUsed).send().await?;
-let df = transactions.into_dataframe();
-println!("{df}");
-```
-
-All major YNAB types are supported: `Account`, `Transaction`, `HybridTransaction`, `TransactionSummary`, `Subtransaction`, `Category`, `CategoryGroup`, `Month`, `Payee`, `PayeeLocation`, `Plan`, `ScheduledTransaction`, `ScheduledTransactionSummary`, `ScheduledSubtransaction`, `MoneyMovement`, and `MoneyMovementGroup`.
-
-With Polars' lazy API you can filter, group, and join across types:
-
-```rust
-use rust_ynab::IntoDataFrame;
-
-let (txs, _) = client.get_transactions(PlanId::LastUsed).send().await?;
-let result = txs.into_dataframe()
-    .lazy()
-    .filter(col("deleted").eq(lit(false)))
-    .filter(col("amount").lt(lit(0i64)))
-    .group_by([col("category_name")])
-    .agg([col("amount").sum().alias("total_spent")])
-    .sort(["total_spent"], SortMultipleOptions::default())
-    .collect()?;
-```
-
-Nested collections (e.g. `Transaction::subtransactions`) are replaced with a `*_count` column. Use the corresponding type's `into_dataframe()` and join on the shared ID column to access the full data.
-
-`Account`'s three date-keyed debt maps (`debt_interest_rates`, `debt_minimum_payments`, `debt_escrow_amounts`) don't fit that pattern either — a variable number of dated entries per account isn't a fixed column. `account_debt_history(&accounts)` flattens them into a long-format table (`account_id`, `kind`, `month`, `amount`), joinable on `account_id`.
-
 ## Builder Pattern
 
 Methods that support optional parameters use a builder. Call the factory method on the client, chain any options, then call `.send()`:
@@ -240,6 +200,50 @@ match client.get_plan(PlanId::LastUsed).send().await {
 
 Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `InternalServerError`, `ServiceUnavailable`.
 
+## Polars Integration
+
+Enable the `polars` feature to convert any YNAB collection into a Polars [`DataFrame`](https://docs.rs/polars/latest/polars/frame/struct.DataFrame.html):
+
+```toml
+[dependencies]
+rust-ynab = { version = "0.5.5", features = ["polars"] }
+polars = { version = "...", features = ["lazy"] }
+```
+
+```rust
+use rust_ynab::IntoDataFrame;
+
+let (transactions, _) = client.get_transactions(PlanId::LastUsed).send().await?;
+let df = transactions.into_dataframe();
+println!("{df}");
+```
+
+All major YNAB types are supported: `Account`, `Transaction`, `HybridTransaction`, `TransactionSummary`, `Subtransaction`, `Category`, `CategoryGroup`, `Month`, `Payee`, `PayeeLocation`, `Plan`, `ScheduledTransaction`, `ScheduledTransactionSummary`, `ScheduledSubtransaction`, `MoneyMovement`, and `MoneyMovementGroup`.
+
+With Polars' lazy API you can filter, group, and join across types:
+
+```rust
+use rust_ynab::IntoDataFrame;
+
+let (txs, _) = client.get_transactions(PlanId::LastUsed).send().await?;
+let result = txs.into_dataframe()
+    .lazy()
+    .filter(col("deleted").eq(lit(false)))
+    .filter(col("amount").lt(lit(0i64)))
+    .group_by([col("category_name")])
+    .agg([col("amount").sum().alias("total_spent")])
+    .sort(["total_spent"], SortMultipleOptions::default())
+    .collect()?;
+```
+
+Nested collections (e.g. `Transaction::subtransactions`) are replaced with a `*_count` column. Use the corresponding type's `into_dataframe()` and join on the shared ID column to access the full data.
+
+`Account`'s three date-keyed debt maps (`debt_interest_rates`, `debt_minimum_payments`, `debt_escrow_amounts`) don't fit that pattern either — a variable number of dated entries per account isn't a fixed column. `account_debt_history(&accounts)` flattens them into a long-format table (`account_id`, `kind`, `month`, `amount`), joinable on `account_id`. [`examples/debt_account_history.rs`](examples/debt_account_history.rs) joins that table against account names and filters to the trailing 12 months.
+
+See [`examples/spending_by_category.rs`](examples/spending_by_category.rs) for a full runnable analysis: spending by category over the trailing 12 months, with `Inflow` categories filtered out.
+
+`Month::categories` is also nested, but with a catch: `get_months` (the list endpoint) returns month summaries with no categories at all — only `get_month` (single month) includes them. [`examples/budget_variance.rs`](examples/budget_variance.rs) shows the pattern: fetch each month individually, stack a `month` column onto its `categories.into_dataframe()`, and `concat` across months to get budgeted-vs-actual variance by category over time.
+
 ## Examples
 
 - [List plans](examples/list_plans.rs)
@@ -255,6 +259,9 @@ Available error variants: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
 - [Split transaction](examples/split_transaction.rs)
 - [Delta request](examples/delta_request.rs)
 - [Tracing demo](examples/trace_demo.rs)
+- [Spending by category](examples/spending_by_category.rs) — requires the `polars` feature
+- [Budget vs. actual variance](examples/budget_variance.rs) — requires the `polars` feature
+- [Debt account history](examples/debt_account_history.rs) — requires the `polars` feature
 
 ## API Coverage
 
