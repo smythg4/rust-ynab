@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "0.5.5"
+rust-ynab = "6"
 ```
 
 ## Usage
@@ -29,7 +29,7 @@ For applications acting on behalf of other users, `OAuthConfig` supports the Aut
 
 ```toml
 [dependencies]
-rust-ynab = { version = "0.5.5", features = ["oauth"] }
+rust-ynab = { version = "0.5.6", features = ["oauth"] }
 ```
 
 ```rust
@@ -206,7 +206,7 @@ Enable the `polars` feature to convert any YNAB collection into a Polars [`DataF
 
 ```toml
 [dependencies]
-rust-ynab = { version = "0.5.5", features = ["polars"] }
+rust-ynab = { version = "0.5.6", features = ["polars"] }
 polars = { version = "...", features = ["lazy"] }
 ```
 
