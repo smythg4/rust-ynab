@@ -8,7 +8,7 @@ A Rust client for the [YNAB API](https://api.ynab.com). Supports full access to 
 
 ```toml
 [dependencies]
-rust-ynab = "6"
+rust-ynab = "0.5.6"
 ```
 
 ## Usage
