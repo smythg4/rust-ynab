@@ -22,10 +22,10 @@ jobs:
         run: cargo fmt --check
 
       - name: clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --features polars,oauth -- -D warnings
 
       - name: test
-        run: cargo test
+        run: cargo test --features polars,oauth
 
   integration:
     runs-on: ubuntu-latest
